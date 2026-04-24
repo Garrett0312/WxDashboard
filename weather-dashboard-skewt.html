@@ -1,0 +1,3825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cedar Rapids Weather Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0b0f14;
+    --panel: #111720;
+    --panel2: #151d28;
+    --border: rgba(100,180,255,0.12);
+    --accent: #3aa0ff;
+    --text: #e8f0f8;
+    --muted: #6a8099;
+    --radar-crop: 57px;
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    overflow: hidden;
+  }
+
+  body {
+    display: grid;
+    grid-template-columns: 300px 1fr 300px;
+    grid-template-rows: 72px 250px 1fr 175px 175px 52px;
+    /*grid-template-rows: 72px 2fr 1.5fr 1.2fr 1.2fr 52px;*/
+    /*grid-template-rows: 72px 220px 1fr 140px 140px 52px;*/
+    gap: 7px;
+    padding: 7px;
+    height: 100vh;
+    max-height: 100vh;
+    overflow: hidden;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* TOP BAR */
+  #topbar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 22px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  #topbar .city {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 34px;
+    letter-spacing: 3px;
+    color: var(--accent);
+  }
+  #clock {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 36px;
+    font-weight: 300;
+    letter-spacing: 2px;
+  }
+  #date-display {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 24px;
+    color: var(--muted);
+    text-align: right;
+    line-height: 1.6;
+    /*max-width: 100px;*/
+    display: inline-block;
+    word-wrap: break-word;
+    /*margin-left: auto;*/
+  }
+
+  /* LEFT COL — CURRENT CONDITIONS */
+  #current-weather {
+    grid-column: 1;
+    grid-row: 2/4;
+    padding: 10px 16px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    /*object-position: top;*/
+  }
+  .station-badge {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .temp-main {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 88px;
+    line-height: 1;
+  }
+  .temp-unit { font-size: 32px; color: var(--muted); vertical-align: top; }
+  .condition {
+    font-size: 12px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin: 5px 0 12px;
+  }
+  .weather-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+  }
+  .weather-stat {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 7px 9px;
+  }
+  .weather-stat .label {
+    font-size: 9px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+  }
+  .weather-stat .val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 17px;
+    margin-top: 2px;
+  }
+
+  /* WIND ROSE */
+  .temp-wind-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 40px;
+    margin-bottom: 0;
+  }
+  #wind-rose-wrap {
+    justify-content:start;
+    flex-shrink: 0;
+    margin-bottom: 15px;
+    transform: scale(1.5);
+    transform-origin: center top;
+  }
+
+
+
+
+  /* CENTER — SATELLITE */
+  #satellite {
+    grid-column: 2;
+    grid-row: 2 / 6;
+    position: relative;
+  }
+  #satellite iframe {
+    width: 100%; height: 100%; /* std satellite frame size*/
+    /*width: 122%; height: 122%;*/ /* COD Wx Frame Size*/
+    /* width: 150%; height: 150%;*/ /* NESDIS Frame Size */
+    /*margin-left: -5;
+    margin-top: -10%;*/
+    border: none; display: block;
+  }
+  /* Radar mode: push iframe up to hide the white header bar.
+     Adjust --radar-crop to match the height of the bar you see. */
+  #satellite.radar-mode iframe {
+    height: calc(100% + var(--radar-crop, 60px));
+    margin-top: calc(-1 * var(--radar-crop, 60px));
+  }
+  #satellite .sat-label {
+    position: absolute;
+    /*top: 1px; left: 380px;*/
+    top: 10px; left: 365px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 15px;
+    letter-spacing: 2px;
+    color: var(--accent);
+    background: rgba(11,15,20,0.82);
+    padding: 2px 10px;
+    border-radius: 3px;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  /* RIGHT COL — FORECAST */
+  #forecast {
+    grid-column: 3;
+    grid-row: 2 / 3;
+    padding: 11px 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .section-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 14px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    margin-bottom: 3px;
+    flex-shrink: 0;
+  }
+  .forecast-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+  .forecast-day { font-size: 11px; font-weight: 500; width: 32px; }
+  .forecast-icon { font-size: 16px; width: 24px; text-align: center; }
+  .forecast-desc { font-size: 10px; color: var(--muted); flex: 1; padding: 0 5px; }
+  .forecast-temps { font-family: 'IBM Plex Mono', monospace; font-size: 11px; }
+  .forecast-lo { color: var(--muted); }
+
+  /* BOTTOM Right ROW 1 — AVG HI/LO (CLI) */
+  #avg-hilo {
+    grid-column: 3;
+    grid-row: 5;
+    padding: 2% 2%;
+    display: flex;
+    flex-direction: column;
+  }
+  .hilo-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+    margin-top: 1%;
+    margin-bottom: 1%;
+    flex: 1;
+  }
+  .hilo-card {
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 3px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .hilo-card .label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 0px;
+    color: var(--muted);
+  }
+  .hilo-card .val {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 28px;
+    margin-top: 1px;
+  }
+  .hilo-card .val.hi { color: #ff9060; position: relative; left: 5px;}
+  .hilo-card .val.lo { color: #60c0ff; position: relative; left: 5px;}
+  .hilo-card .val.pcp { color: #80e0a0; position: relative; left: 5px;}
+  .hilo-card .val.sm { font-size: 28px; margin-top: 1px; }
+  .hilo-sub { font-size: 12px; color: var(--muted); margin-top: 0px; margin-bottom: 0px;}
+  .hilo-dep { font-size: 12px; color: #80e0a0; position: relative; margin-top: 0px; margin-bottom: 0px;}
+  .hilo-dep.negative {color: #ff6b6b;}
+
+  /* Middel Right ROW 2 — ALERTS */
+  #alerts {
+    grid-column: 3;
+    grid-row: 3 / 5;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  #story-img {
+  transition: opacity 0.6s ease;
+  }
+  #stories-content {
+    transition: opacity 0.6s ease;
+  }
+  #alert-content {
+    padding: 0;
+    transition: opacity 0.6s ease;
+    overflow: hidden;
+    position: relative;
+  }
+  #alert-content-inner {
+    padding: 8px 10px 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  #alert-content-inner.scrolling {
+    animation: scroll-alerts var(--alert-scroll-dur, 20s) ease-in-out infinite;
+  }
+  @keyframes scroll-alerts {
+    0%   { transform: translateY(0); }
+    15%  { transform: translateY(0); }          /* pause at top */ /* 0%→15% is the % of the total duration spent paused at the top, increase the % on this line to make the pause longer */
+    45%  { transform: translateY(var(--alert-scroll-dist, 0px)); }  /* scroll to bottom */
+    60%  { transform: translateY(var(--alert-scroll-dist, 0px)); }  /* pause at bottom *//* 45%→55% is the % of the total duration spent paused at the bottom, increase the % on this line to make the pause longer */
+    90%  { transform: translateY(0); }           /* scroll back to top */
+    100% { transform: translateY(0); }
+  }
+  #sun-row-fixed {
+    margin: 4px 10px 8px;
+  }
+  .alert-box {
+    background: rgba(255,124,58,0.08);
+    border: 1px solid rgba(255,124,58,0.3);
+    border-radius: 4px;
+    padding: 7px 10px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #ffb47a;
+    flex: 1;
+  }
+  .alert-box.ok {
+    background: rgba(58,160,255,0.05);
+    border-color: rgba(58,160,255,0.15);
+    color: var(--muted);
+  }
+  .alert-box .alert-head {
+    font-size: 9px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 3px;
+  }
+  .sun-row {
+    display: flex;
+    justify-content: space-between;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 7px 12px;
+    flex-shrink: 0;
+  }
+  .sun-item { text-align: center; }
+  .sun-item .label { font-size: 8px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .sun-item .val { font-family: 'IBM Plex Mono', monospace; font-size: 14px; margin-top: 2px; }
+
+  /* BOTTOM LEFT — SOUNDING */
+  #sounding {
+    grid-column: 1;
+    grid-row: 4 / 6;
+    /*min-height: 0;*/
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .snd-header {
+    padding: 8px 4px 4px; /* originally:: padding: 8px 12px 4px */
+    display: flex;
+    align-items: left;           /* align-items: center; */
+    justify-content: space-evenly; /* justify-content: space-between; */
+    flex-shrink: 1;
+    position: relative;
+    z-index: 10;
+  }
+  #sounding-img {
+    /*transform: scale(1.26);
+    transform-origin: left top;*/
+    /*height: 150%;*/
+    /*flex: 1;*/
+    /*width: 100%;*/
+    object-fit: cover;
+    /*object-position: 60% 5%;*/
+    /*display: block;*/
+    /*min-height: 0;*/
+    background: #ffffff;
+    /*background: rgba(247,246,230,1.0);*/
+  }
+  #sounding-station {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+  }
+
+  #parcel-controls button {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 8px;
+    letter-spacing: 1.2px;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 2px 2px;
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    pointer-events: all;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    white-space: nowrap;
+  }
+  .parcel-controls button:hover {
+    color: var(--text);
+    border-color: rgba(100,180,255,0.4);
+  }
+  .parcel-controls button.active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: rgba(58,160,255,0.1);
+  }
+
+  /* BOTTOM BAR */
+  #bottombar {
+    grid-column: 1 / -1;
+    grid-row: 6;
+    /*min-height: 0;*/
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  #ticker-wrap { flex: 1; overflow: hidden; margin: 0 18px; }
+  #ticker {
+    display: inline-block;
+    white-space: nowrap;
+    animation: scroll-left 120s linear infinite;
+  }
+  @keyframes scroll-left {
+    from { transform: translateX(100vw); }
+    to   { transform: translateX(-100%); }
+  }
+  .tick-sep { color: var(--accent); margin: 0 12px; }
+
+  .live-dot {
+    display: inline-block;
+    width: 7px; height: 7px;
+    background: #ff4444;
+    border-radius: 50%;
+    margin-right: 5px;
+    animation: pulse 1.5s infinite;
+    vertical-align: middle;
+  }
+  @keyframes pulse {
+    0%,100% { opacity:1; transform:scale(1); }
+    50%      { opacity:0.4; transform:scale(0.7); }
+  }
+
+  .loading {
+    display: flex; align-items: center; justify-content: center;
+    height: 100%; color: var(--muted); font-size: 11px; letter-spacing: 1px;
+  }
+  
+  /*<style id="spc-panel-styles">*/
+
+  /* SPC map container — sits on top of the satellite iframe when active */
+  #spc-map-container {
+    display: none;
+    position: absolute;
+    inset: 0;
+    top: 0; left:0;
+    width: 100%; height: 100%;
+    flex-direction: column;
+    background: var(--bg);
+    z-index: 5;
+  }
+
+  /* Sub-button toolbar — only visible in SPC mode */
+  #spc-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px;
+    padding: 6px 8px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    z-index: 10;
+  }
+
+  .spc-btn {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 11px;
+    letter-spacing: 1.2px;
+    color: var(--muted);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 2px 8px;
+    cursor: pointer;
+    pointer-events: all;
+    transition: color 0.15s, border-color 0.15s, background 0.15s;
+    white-space: nowrap;
+  }
+  .spc-btn:hover {
+    color: var(--text);
+    border-color: rgba(100,180,255,0.4);
+  }
+  .spc-btn.active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: rgba(58,160,255,0.1);
+  }
+
+  /* Day group separator label */
+  .spc-day-sep {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    color: rgba(100,180,255,0.35);
+    padding: 2px 4px;
+    align-self: center;
+    pointer-events: none;
+    flex-shrink: 0;
+  }
+
+  /* Leaflet map fills remaining space */
+  #spc-map {
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* Override Leaflet's default white bg */
+  .leaflet-container {
+    background: #0d1219 !important;
+  }
+
+  /* Legend box bottom-left */
+  #spc-legend {
+    position: absolute;
+    bottom: 24px;
+    left: 8px;
+    /*width: 100%; height: 100%;*/
+    z-index: 1000;
+    background: rgba(11,15,20,0.88);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 16px;
+    color: var(--text);
+    pointer-events: none;
+    min-width: 130px;
+  }
+  #spc-legend .leg-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px;
+    letter-spacing: 1.5px;
+    color: var(--accent);
+    margin-bottom: 5px;
+  }
+  .leg-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 3px;
+    line-height: 1;
+  }
+  .leg-swatch {
+    width: 14px;
+    height: 10px;
+    border-radius: 2px;
+    flex-shrink: 0;
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+  .leg-swatch.hatch {
+    background-image: repeating-linear-gradient(
+      45deg,
+      rgba(0,0,0,0.6) 0px, rgba(0,0,0,0.6) 2px,
+      transparent 2px, transparent 6px
+    );
+  }
+
+  /* "No outlook" overlay */
+  #spc-empty-msg {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1000;
+    background: rgba(11,15,20,0.85);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 20px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 36px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-align: center;
+    pointer-events: none;
+  }
+
+  /* Valid time info strip */
+  #spc-valid-strip {
+    position: absolute;
+    bottom: 6px;
+    right: 8px;
+    z-index: 1000;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    text-align: right;
+    pointer-events: none;
+    line-height: 1.5;
+  }
+
+</style>
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <div class="city">&#127750; Cedar Rapids, Iowa</div>
+  <div id="clock">--:--:--</div>
+  <div id="date-display">--</div>
+</div>
+
+<!-- CURRENT CONDITIONS — Ambient Weather PWS -->
+<div class="panel" id="current-weather">
+  <div class="loading" id="wx-loading">Connecting to station...</div>
+  <div id="wx-content" style="display:none; flex-direction:column; justify-content:start; height:100%; padding:0px 10px 10px 10px;">
+    <div class="station-badge"><span class="live-dot"></span> <span id="station-name">Personal Weather Station</span></div>
+    <div class="temp-wind-row">
+      <div><span class="temp-main" id="temp-val">--</span><span class="temp-unit">°F</span></div>
+      <div id="wind-rose-wrap">
+        <svg id="wind-rose" width="72" height="72" viewBox="0 0 72 72" xmlns="http://www.w3.org/2000/svg">
+        <!-- compass ring -->
+        <circle cx="36" cy="36" r="33" fill="none" stroke="rgba(100,180,255,0.15)" stroke-width="1"/>
+        <circle cx="36" cy="36" r="22" fill="none" stroke="rgba(100,180,255,0.08)" stroke-width="1"/>
+        <line x1="36" y1="3"  x2="36" y2="10" stroke="rgba(100,180,255,0.3)" stroke-width="1"/>
+        <line x1="36" y1="62" x2="36" y2="69" stroke="rgba(100,180,255,0.3)" stroke-width="1"/>
+        <line x1="3"  y1="36" x2="10" y2="36" stroke="rgba(100,180,255,0.3)" stroke-width="1"/>
+        <line x1="62" y1="36" x2="69" y2="36" stroke="rgba(100,180,255,0.3)" stroke-width="1"/>
+        <text x="36" y="16" text-anchor="middle" font-size="7" fill="rgba(100,180,255,0.5)" font-family="IBM Plex Mono,monospace">N</text>
+        <text x="36" y="61" text-anchor="middle" font-size="7" fill="rgba(100,180,255,0.5)" font-family="IBM Plex Mono,monospace">S</text>
+        <text x="11" y="39" text-anchor="middle" font-size="7" fill="rgba(100,180,255,0.5)" font-family="IBM Plex Mono,monospace">W</text>
+        <text x="61" y="39" text-anchor="middle" font-size="7" fill="rgba(100,180,255,0.5)" font-family="IBM Plex Mono,monospace">E</text>
+        <!-- barb group — rotated + redrawn by JS -->
+        <g id="wind-barb"></g>
+        <!-- speed label -->
+        <!--text id="rose-speed" x="36" y="70" text-anchor="middle" font-size="7.5" fill="#6a8099" text-shadow="5px 5px 7px red" font-family="IBM Plex Mono,monospace">-- mph</text-->
+        <text id="rose-speed" x="36" y="70" text-anchor="middle" font-size="7.5" fill="#6a8099" stroke="#000000" stroke-width="0.8" paint-order="stroke" font-family="IBM Plex Mono,monospace">-- mph</text>
+      </svg>
+      </div>
+    </div>
+    <div class="condition" id="condition-val">--</div>
+    <div class="weather-grid">
+      <div class="weather-stat"><div class="label">Feels Like</div><div class="val" id="feels-val">--°</div></div>
+      <div class="weather-stat"><div class="label">Max Daily Gust</div><div class="val" id="windgst-val">--</div></div>
+      <div class="weather-stat"><div class="label">Wind</div><div class="val" id="wind-val">-- mph</div></div>
+      <div class="weather-stat"><div class="label">Direction</div><div class="val" id="winddir-val">---</div></div>
+      <div class="weather-stat"><div class="label">Dew Point</div><div class="val" id="dew-val">--°</div></div>
+      <div class="weather-stat"><div class="label">Humidity</div><div class="val" id="humidity-val">--%</div></div>
+      <div class="weather-stat"><div class="label">Pressure</div><div class="val" id="pressure-val">--"</div></div>
+      <div class="weather-stat"><div class="label">Rain Today</div><div class="val" id="rain-val">--"</div></div>
+      <div class="weather-stat"><div class="label">UV Index</div><div class="val" id="uv-val">--</div></div>
+      <div class="weather-stat"><div class="label">Solar Rad.</div><div class="val" id="solar-val">--</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- solar-val
+  Links to use for the Satellite: 
+  • https://geosphere.ssec.wisc.edu/#playing:true;coordinate:-1362525,4001572;zoom:5.9;coverage:radc;frame_rate:20;
+  • https://www.star.nesdis.noaa.gov/goes/sector_band.php?sat=G19&sector=umv&band=GEOCOLOR&length=24&dim=1
+  • https://weather.cod.edu/satrad/?parms=subregional-N_Iowa-truecolor-24-1-100-1&checked=map&colorbar=undefined
+  • https://www.star.nesdis.noaa.gov/goes/sector_band.php?sat=G19&sector=umv&band=EXTENT3&length=24&refresh=true
+  • https://vortex.plymouth.edu/mapwall/goes_hi/loop.html?region=us_conus&channel=truecolor&days=0.5
+  • https://geosphere.ssec.wisc.edu/#playing:true;coordinate:-1362525,4001572;zoom:5.9;coverage:radc;num_frames:8;frame_rate:10;
+  • 
+
+-->
+  <!-- Satellite iframe (default) -->
+  <!-- src="https://radar.weather.gov/?settings=v1_eyJhZ2VuZGEiOnsiaWQiOiJ3ZWF0aGVyIiwiY2VudGVyIjpbLTkyLjk4LDQxLjU3M10sImxvY2F0aW9uIjpudWxsLCJ6b29tIjo3LCJsYXllciI6ImJyZWZfcWNkIn0sImFuaW1hdGluZyI6dHJ1ZSwiYmFzZSI6InN0YW5kYXJkIiwiYXJ0Y2MiOmZhbHNlLCJjb3VudHkiOmZhbHNlLCJjd2EiOmZhbHNlLCJyZmMiOmZhbHNlLCJzdGF0ZSI6ZmFsc2UsIm1lbnUiOnRydWUsInNob3J0RnVzZWRPbmx5IjpmYWxzZSwib3BhY2l0eSI6eyJhbGVydHMiOjAuOCwibG9jYWwiOjAuNiwibG9jYWxTdGF0aW9ucyI6MC44LCJuYXRpb25hbCI6MC42fX0%3D"-->
+  <!-- src="https://geosphere.ssec.wisc.edu/#playing:true;coordinate:-1362525,4001572;zoom:5.9;coverage:radc;num_frames:8;frame_rate:10;"-->
+
+<!-- SATELLITE — toggleable -->
+<div class="panel" id="satellite">
+  <div class="sat-label" style="display:flex;align-items:center;gap:12px;">
+    <span><span class="live-dot"></span> <span id="sat-label-text">SATELLITE — N IOWA TRUE COLOR</span></span>
+    <button id="sat-toggle" onclick="cycleSource('next')" style="
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 12px;
+      letter-spacing: 1.5px;
+      color: var(--accent);
+      background: rgba(58,160,255,0.1);
+      border: 1px solid rgba(58,160,255,0.3);
+      border-radius: 3px;
+      padding: 2px 10px;
+      cursor: pointer;
+      pointer-events: all;
+    ">RADAR</button>
+    <button id="spc-toggle" onclick="cycleSource('spc')" style="
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 12px;
+      letter-spacing: 1.5px;
+      color: var(--accent);
+      background: rgba(58,160,255,0.1);
+      border: 1px solid rgba(58,160,255,0.3);
+      border-radius: 3px;
+      padding: 2px 10px;
+      cursor: pointer;
+      pointer-events: all;
+    ">SPC</button>
+    <button id="meso-toggle" onclick="cycleSource('meso')" style="
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 12px;
+      letter-spacing: 1.5px;
+      color: var(--accent);
+      background: rgba(58,160,255,0.1);
+      border: 1px solid rgba(58,160,255,0.3);
+      border-radius: 3px;
+      padding: 2px 10px;
+      cursor: pointer;
+      pointer-events: all;
+    ">MESO</button>
+  </div>
+  <iframe id="sat-iframe"
+    src="https://geosphere.ssec.wisc.edu/#playing:true;coordinate:-1362525,4001572;zoom:5.9;coverage:radc;num_frames:8;frame_rate:10;"
+    title="Satellite"
+    allowfullscreen
+    loading="lazy"
+    sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+  ></iframe>
+
+  <!-- SPC map lives INSIDE the satellite panel -->
+  <div id="spc-map-container">
+
+    <!-- Sub-layer toolbar -->
+    <div id="spc-toolbar">
+      <span class="spc-day-sep">D1</span>
+      <button class="spc-btn active" data-primary="https://www.spc.noaa.gov/products/outlook/day1otlk_cat.lyr.geojson" data-sig="">OUTLOOK</button>
+      <button class="spc-btn" data-primary="https://www.spc.noaa.gov/products/outlook/day1otlk_torn.lyr.geojson" data-sig="https://www.spc.noaa.gov/products/outlook/day1otlk_cigtorn.lyr.geojson">TORNADO</button>
+      <button class="spc-btn" data-primary="https://www.spc.noaa.gov/products/outlook/day1otlk_hail.lyr.geojson" data-sig="https://www.spc.noaa.gov/products/outlook/day1otlk_cighail.lyr.geojson">HAIL</button>
+      <button class="spc-btn" data-primary="https://www.spc.noaa.gov/products/outlook/day1otlk_wind.lyr.geojson" data-sig="https://www.spc.noaa.gov/products/outlook/day1otlk_cigwind.lyr.geojson">WIND</button>
+
+      <span class="spc-day-sep">D2</span>
+      <button class="spc-btn" data-primary="https://www.spc.noaa.gov/products/outlook/day2otlk_cat.lyr.geojson" data-sig="">OUTLOOK</button>
+      <button class="spc-btn" data-primary="https://www.spc.noaa.gov/products/outlook/day2otlk_torn.lyr.geojson" data-sig="https://www.spc.noaa.gov/products/outlook/day2otlk_cigtorn.lyr.geojson">TORNADO</button>
+      <button class="spc-btn" data-primary="https://www.spc.noaa.gov/products/outlook/day2otlk_hail.lyr.geojson" data-sig="https://www.spc.noaa.gov/products/outlook/day2otlk_cighail.lyr.geojson">HAIL</button>
+      <button class="spc-btn" data-primary="https://www.spc.noaa.gov/products/outlook/day2otlk_wind.lyr.geojson" data-sig="https://www.spc.noaa.gov/products/outlook/day2otlk_cigwind.lyr.geojson">WIND</button>
+
+      <span class="spc-day-sep">D3</span>
+      <button class="spc-btn" data-primary="https://www.spc.noaa.gov/products/outlook/day3otlk_cat.lyr.geojson" data-sig="">OUTLOOK</button>
+      <button class="spc-btn" data-primary="https://www.spc.noaa.gov/products/outlook/day3otlk_prob.lyr.geojson" data-sig="https://www.spc.noaa.gov/products/outlook/day3otlk_cigprob.lyr.geojson">PROBS</button>
+    </div>
+
+    <!-- Leaflet map -->
+    <div id="spc-map"></div>
+
+    <!-- Legend (populated dynamically) -->
+    <div id="spc-legend">
+      <div class="leg-title">OUTLOOK</div>
+      <div id="spc-legend-rows"></div>
+    </div>
+
+    <!-- Empty/no-outlook message -->
+    <div id="spc-empty-msg">LESS THAN 5% — ALL AREAS</div>
+
+    <!-- Valid time strip -->
+    <div id="spc-valid-strip"></div>
+
+  </div><!-- end #spc-map-container -->
+
+  <!-- Artemis II Live Feed Button -->
+  <!--<button id="artemis-btn" onclick="toggleArtemis()" title="Artemis II Live Feed" style="
+    position: absolute;
+    bottom: 10px;
+    right: 80px;
+    z-index: 20;
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    overflow: hidden;
+    box-shadow: 0 0 8px rgba(58,160,255,0.4);
+    transition: box-shadow 0.2s, transform 0.2s;
+  " onmouseover="this.style.boxShadow='0 0 16px rgba(58,160,255,0.8)';this.style.transform='scale(1.1)'"
+     onmouseout="this.style.boxShadow='0 0 8px rgba(58,160,255,0.4)';this.style.transform='scale(1)'">
+    <img src="Artemis_II_patch.png" alt="Artemis II" style="width:100%;height:100%;object-fit:cover;" />
+  </button>-->
+
+  <!-- Artemis II YouTube embed (hidden by default) -->
+  <!--<div id="artemis-overlay" style="
+    display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 15;
+    background: #000;
+  ">
+    <iframe id="artemis-iframe"
+      src=""
+      width="100%" height="100%"
+      title="Artemis II Live Feed"
+      frameborder="0"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      referrerpolicy="strict-origin-when-cross-origin"
+      allowfullscreen
+    ></iframe>
+  </div>-->
+</div><!-- end #satellite -->
+
+<!-- 5-DAY FORECAST -->
+<div class="panel" id="forecast">
+  <div class="section-title">5-Day Forecast</div>
+  <div id="forecast-list" style="display:flex;flex-direction:column;gap:5px;flex:1;"><div class="loading">Loading...</div></div>
+</div>
+
+<!-- AVG HI/LO — NWS CLI Normals /// New Version -->
+<div class="panel" id="avg-hilo">
+  <div class="section-title">CID Climate Normals</div>
+  <div class="hilo-grid">
+    <div class="hilo-card"><div class="label">Avg. High</div><div class="val hi" id="cli-hi">--°</div></div>
+    <div class="hilo-card"><div class="label">Avg. Low</div><div class="val lo" id="cli-lo">--°</div></div>
+    <div class="hilo-card"><div class="label">Avg. Precip</div><div class="val pcp" id="cli-pcp">--"</div></div>
+    <div class="hilo-card"><div class="label">Rec. High</div><div class="val hi sm" id="cli-rhi">--°</div><div class="hilo-sub" id="cli-rhi-yr"></div></div>
+    <div class="hilo-card"><div class="label">Rec. Low</div><div class="val lo sm" id="cli-rlo">--°</div><div class="hilo-sub" id="cli-rlo-yr"></div></div>
+    <div class="hilo-card"><div class="label">YTD Precip</div><div class="val pcp" id="cli-pcp-ytd">--"</div><div class="hilo-dep" id="cli-pcp-ytd-dep">--"</div></div>
+  </div>
+</div>
+
+<!-- NWS ALERTS + SUN -->
+<div class="panel" id="alerts">
+  <!-- Tab headers -->
+  <div id="alerts-tabs" style="display:flex;gap:0;flex-shrink:0;border-bottom:1px solid var(--border);">
+    <div id="tab-alerts" onclick="switchAlertsTab('alerts')" style="
+      flex:1; text-align:center; padding:6px 4px;
+      font-family:'Bebas Neue',sans-serif; font-size:13px; letter-spacing:1.5px;
+      color:var(--accent); cursor:pointer;
+      border-bottom:2px solid var(--accent);
+    ">NWS Alerts</div>
+    <div id="tab-stories" onclick="switchAlertsTab('stories')" style="
+      flex:1; text-align:center; padding:6px 4px;
+      font-family:'Bebas Neue',sans-serif; font-size:13px; letter-spacing:1.5px;
+      color:var(--muted); cursor:pointer;
+      border-bottom:2px solid transparent;
+    ">WX Stories</div>
+  </div>
+  <!-- Alerts content -->
+  <div id="alert-content" style="display:flex;flex-direction:column;flex:1;">
+    <div id="alert-content-inner" style="display:flex;flex-direction:column;gap:5px;">
+      <div class="loading">Checking...</div>
+    </div>
+  </div>
+  <!-- Stories content -->
+  <div id="stories-content" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+    <div id="story-img-wrap" style="flex:1;min-height:0;overflow:hidden;position:relative;">
+      <img id="story-img" src="" alt="" style="width:100%;height:100%;object-fit:contain;display:block;" />
+      <div id="story-title" style="
+        position:absolute;bottom:0;left:0;right:0;
+        background:rgba(11,15,20,0.75);
+        font-family:'IBM Plex Sans',sans-serif;
+        font-size:10px; color:var(--text);
+        padding:4px 8px; line-height:1.3;
+      "></div>
+    </div>
+    <div id="story-dots" style="display:flex;justify-content:center;gap:5px;padding:4px 0;flex-shrink:0;"></div>
+  </div>
+  <!-- Sun row always visible at bottom -->
+  <div class="sun-row" id="sun-row-fixed" style="flex-shrink:0;margin-top:auto;flex-direction:column;padding:6px 12px 8px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;width:100%;">
+      <div class="sun-item"><div class="label">☀ Sunrise</div><div class="val" id="sunrise-val">--</div></div>
+      <div style="flex:1;display:flex;justify-content:center;align-items:flex-end;padding-bottom:2px;">
+        <canvas id="sun-arc" width="100" height="44" style="display:block;"></canvas>
+      </div>
+      <div class="sun-item"><div class="label">🌙 Sunset</div><div class="val" id="sunset-val">--</div></div>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- BOTTOM TICKER BAR -->
+<div id="bottombar">
+  <span><span class="live-dot"></span> LIVE DATA</span>
+  <div id="ticker-wrap"><span id="ticker">Initializing dashboard...</span></div>
+  <span id="last-updated">--</span>
+</div>
+
+<!-- UPPER AIR SOUNDING -->
+<div class="panel" id="sounding">
+  <div class="snd-header" style="flex-wrap:wrap; gap: 0px 2px"> <!-- items removed from the style function: gap:4px 4px; position: center center;-->
+  <div class="section-title" style="margin:0;cursor:pointer;text-decoration:underline dotted;" 
+  title="Click to load a modeled sounding (KCID)"
+  onclick="loadModelSounding()">Upper Air Sounding</div>
+  <div id="sounding-station" style="margin:0;">Probing...</div>
+  <!-- Parcel Mode Controls 
+  <div id="parcel-controls" style="display:grid; grid-template-columns:auto auto; gap:1px;"> grid-template-columns:1fr 1fr; originally changed to auto auto-->  
+    <div id="parcel-controls" style="display:flex; gap: 4px;">
+      <button onclick="setParcelMode('SB')">SB</button>
+      <button onclick="setParcelMode('WX')">WX</button>
+      <button onclick="setParcelMode('ML')">ML</button>
+      <button onclick="setParcelMode('MU')">MU</button>
+    </div>
+  </div>
+  
+  <div id="skewt"
+    style="position:absolute; top:32px; left:0; width:100%; height:calc(100% - 32px);">
+  </div>
+</div>
+
+<script>
+function getAmbientKeys() {
+  const apiKey = localStorage.getItem('AW_API_KEY');
+  const appKey = localStorage.getItem('AW_APP_KEY');
+  if (apiKey && appKey) return Promise.resolve({ apiKey, appKey });
+
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position:fixed; inset:0; background:rgba(11,15,20,0.95);
+      display:flex; flex-direction:column; align-items:center;
+      justify-content:center; z-index:9999; gap:16px;
+      font-family:'IBM Plex Mono', monospace; color:#e8f0f8;
+    `;
+    overlay.innerHTML = `
+      <div style="font-family:'Bebas Neue',sans-serif; font-size:28px; letter-spacing:3px; color:#3aa0ff;">
+        AMBIENT WEATHER SETUP
+      </div>
+
+      <!-- Tab buttons -->
+      <div style="display:flex; gap:8px;">
+        <button id="tab-file" onclick="showTab('file')" style="
+          font-family:'Bebas Neue',sans-serif; font-size:14px; letter-spacing:2px;
+          background:#3aa0ff; color:#0b0f14; border:none; border-radius:4px;
+          padding:6px 18px; cursor:pointer;">
+          LOAD FILE
+        </button>
+        <button id="tab-manual" onclick="showTab('manual')" style="
+          font-family:'Bebas Neue',sans-serif; font-size:14px; letter-spacing:2px;
+          background:transparent; color:#6a8099; border:1px solid rgba(100,180,255,0.2);
+          border-radius:4px; padding:6px 18px; cursor:pointer;">
+          ENTER MANUALLY
+        </button>
+      </div>
+
+      <!-- File tab -->
+      <div id="pane-file" style="display:flex; flex-direction:column; align-items:center; gap:12px;">
+        <div style="font-size:12px; color:#6a8099; text-align:center;">
+          Select your <strong style="color:#e8f0f8">aw-keys.json</strong> file
+        </div>
+        <input type="file" id="key-file-input" accept=".json" style="
+          font-family:'IBM Plex Mono',monospace; font-size:12px; color:#e8f0f8;
+          background:#151d28; border:1px solid rgba(100,180,255,0.2);
+          border-radius:4px; padding:8px 12px; cursor:pointer;" />
+      </div>
+
+      <!-- Manual tab -->
+      <div id="pane-manual" style="display:none; flex-direction:column; align-items:center; gap:10px;">
+        <input id="manual-api" type="text" placeholder="API Key" style="
+          font-family:'IBM Plex Mono',monospace; font-size:12px; color:#e8f0f8;
+          background:#151d28; border:1px solid rgba(100,180,255,0.2);
+          border-radius:4px; padding:8px 12px; width:420px;" />
+        <input id="manual-app" type="text" placeholder="Application Key" style="
+          font-family:'IBM Plex Mono',monospace; font-size:12px; color:#e8f0f8;
+          background:#151d28; border:1px solid rgba(100,180,255,0.2);
+          border-radius:4px; padding:8px 12px; width:420px;" />
+        <button onclick="submitManual()" style="
+          font-family:'Bebas Neue',sans-serif; font-size:14px; letter-spacing:2px;
+          background:#3aa0ff; color:#0b0f14; border:none; border-radius:4px;
+          padding:6px 18px; cursor:pointer; margin-top:4px;">
+          SAVE & CONTINUE
+        </button>
+      </div>
+
+      <div id="key-error" style="color:#ff6060; font-size:11px; display:none;"></div>
+    `;
+    document.body.appendChild(overlay);
+
+    // Tab switcher
+    window.showTab = (tab) => {
+      document.getElementById('pane-file').style.display   = tab === 'file'   ? 'flex' : 'none';
+      document.getElementById('pane-manual').style.display = tab === 'manual' ? 'flex' : 'none';
+      document.getElementById('tab-file').style.background   = tab === 'file'   ? '#3aa0ff' : 'transparent';
+      document.getElementById('tab-file').style.color        = tab === 'file'   ? '#0b0f14' : '#6a8099';
+      document.getElementById('tab-manual').style.background = tab === 'manual' ? '#3aa0ff' : 'transparent';
+      document.getElementById('tab-manual').style.color      = tab === 'manual' ? '#0b0f14' : '#6a8099';
+    };
+
+    // File handler
+    document.getElementById('key-file-input').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        try {
+          const { apiKey, appKey } = JSON.parse(ev.target.result);
+          if (!apiKey || !appKey) throw new Error('Missing apiKey or appKey in file');
+          save(apiKey, appKey);
+        } catch (err) {
+          showError('Invalid file: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    });
+
+    // Manual handler
+    window.submitManual = () => {
+      const apiKey = document.getElementById('manual-api').value.trim();
+      const appKey = document.getElementById('manual-app').value.trim();
+      if (!apiKey || !appKey) { showError('Both keys are required'); return; }
+      save(apiKey, appKey);
+    };
+
+    function save(apiKey, appKey) {
+      localStorage.setItem('AW_API_KEY', apiKey);
+      localStorage.setItem('AW_APP_KEY', appKey);
+      overlay.remove();
+      resolve({ apiKey, appKey });
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('key-error');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+  });
+}
+
+
+//const LAT = 41.9779, LON = -91.6656;
+
+let LAT = 41.9779, LON = -91.6656; // fallback coordinates
+
+function initWithLocation(lat, lon) {
+  LAT = lat;
+  LON = lon;
+  fetchAlerts();
+  fetchForecast();
+  fetchSun();
+  //console.log('Current Location:',LAT, LON);
+}
+
+
+//const TEST_NOW = new Date('2026-03-20T18:27:00'); // SET TO e.g. new Date('2026-03-20T14:00:00') to test, null = live
+const TEST_NOW = null;
+function getNow() { return TEST_NOW ? new Date(TEST_NOW) : new Date(); }
+
+let currentSoundingData = null;
+
+let parcelMode = 'SB';
+updateParcelButtons();
+// 'SB' = surface-based (sounding)
+// 'ML' = mixed-layer
+// '
+// WX' = surface-based using WxTemp
+
+const WMO_CODES = {
+  0:'Clear Sky',1:'Mainly Clear',2:'Partly Cloudy',3:'Overcast',
+  45:'Fog',48:'Icy Fog',51:'Light Drizzle',53:'Drizzle',55:'Heavy Drizzle',
+  61:'Light Rain',63:'Rain',65:'Heavy Rain',71:'Light Snow',73:'Snow',
+  75:'Heavy Snow',77:'Snow Grains',80:'Rain Showers',81:'Heavy Showers',
+  82:'Violent Showers',85:'Snow Showers',86:'Heavy Snow Showers',
+  95:'Thunderstorm',96:'T-Storm / Hail',99:'T-Storm / Heavy Hail'
+};
+const WMO_ICONS = {
+  0:'☀️',1:'🌤',2:'⛅',3:'☁️',45:'🌫',48:'🌫',51:'🌦',53:'🌧',55:'🌧',
+  61:'🌧',63:'🌧',65:'⛈',71:'🌨',73:'❄️',75:'❄️',77:'🌨',
+  80:'🌦',81:'🌧',82:'⛈',85:'🌨',86:'❄️',95:'⛈',96:'⛈',99:'⛈'
+};
+
+function degToCard(d) {
+  return ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'][Math.round(d/22.5)%16];
+}
+
+// ---- CLOCK ----
+function updateClock() {
+  const now = new Date();
+  const p = n => String(n).padStart(2,'0');
+
+  // Local 12hr
+  let h12 = now.getHours();
+  const ampm = h12 >= 12 ? 'PM' : 'AM';
+  h12 = h12 % 12 || 12;
+  const localTime = `${h12}:${p(now.getMinutes())}:${p(now.getSeconds())}${ampm}`;
+
+  // Zulu 24hr
+  const zuluTime = `${p(now.getUTCHours())}:${p(now.getUTCMinutes())}:${p(now.getUTCSeconds())}Z`;
+
+  document.getElementById('clock').textContent = `${localTime}         |         ${zuluTime}`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ---- CLOCK DATE ----
+function updateDate() {
+  const now = new Date();
+  const options = { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' };
+  const localDate = now.toLocaleDateString(undefined, options);
+  document.getElementById('date-display').textContent = localDate;
+}
+setInterval(updateDate, 60 * 1000);
+updateDate();
+
+function drawWindBarb(speedMph, dirDeg) {
+  const g = document.getElementById('wind-barb');
+  g.innerHTML = ''; // clear previous
+
+  let kt = Math.round(speedMph * 0.868976); // convert mph → knots
+  const cx = 36, cy = 36;
+  const shaftLen = 30; // px, shaft runs from center outward
+  const color = '#3aa0ff';
+  const strokeW = 3.0;
+
+
+  // Calm: two concentric circles, no shaft
+  if (kt < 3) {
+    const c1 = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c1.setAttribute('cx', cx); c1.setAttribute('cy', cy);
+    c1.setAttribute('r', 4); c1.setAttribute('fill','none');
+    c1.setAttribute('stroke', color); c1.setAttribute('stroke-width', strokeW);
+    const c2 = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c2.setAttribute('cx', cx); c2.setAttribute('cy', cy);
+    c2.setAttribute('r', 7); c2.setAttribute('fill','none');
+    c2.setAttribute('stroke', color); c2.setAttribute('stroke-width', strokeW);
+    g.appendChild(c1); g.appendChild(c2);
+    return;
+  }
+
+  if (kt >=3 && kt < 5) {
+    // Light air: single short barb
+    kt = 5; // treat as 5kt for barb drawing
+    //('kt is between 3 and 5:');
+  }
+
+  //console.log('kt:',kt);
+
+  // Wind barbs point INTO the wind — shaft tip is at center (station dot),
+  // barbs hang off the far end of the shaft.
+  // SVG is drawn pointing NORTH (up), then rotated to dirDeg.
+
+  // Shaft: from center (station) upward to tip
+  const tipY   = cy - shaftLen;
+  const shaft  = document.createElementNS('http://www.w3.org/2000/svg','line');
+  shaft.setAttribute('x1', cx); shaft.setAttribute('y1', cy);
+  shaft.setAttribute('x2', cx); shaft.setAttribute('y2', tipY);
+  shaft.setAttribute('stroke', color); shaft.setAttribute('stroke-width', strokeW);
+  shaft.setAttribute('stroke-linecap','round');
+  g.appendChild(shaft);
+
+  // Station dot
+  const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
+  dot.setAttribute('cx', cx); dot.setAttribute('cy', cy);
+  dot.setAttribute('r', 3.2); dot.setAttribute('fill', color);
+  g.appendChild(dot);
+
+  // Stem extending downwind from station dot
+  const tipSize = 1;
+  const stem = document.createElementNS('http://www.w3.org/2000/svg','line');
+  stem.setAttribute('x1', cx); stem.setAttribute('y1', cy + 2);
+  stem.setAttribute('x2', cx); stem.setAttribute('y2', cy + tipSize * 2.5);
+  stem.setAttribute('stroke', color); stem.setAttribute('stroke-width', strokeW);
+  g.appendChild(stem);
+
+  // Arrowhead at the station end pointing away from wind source (downwind)
+  const arrow = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+  arrow.setAttribute('points', `
+    ${cx},${cy + tipSize * 36}
+    ${cx - tipSize*3},${cy + tipSize * 26}
+    ${cx},${cy + tipSize * 28}
+    ${cx + tipSize*3},${cy + tipSize * 26}
+  `);
+  arrow.setAttribute('fill', color);
+  g.appendChild(arrow);
+
+  // Decompose speed into barb components (knots)
+  let remaining = kt;
+  const pennants = Math.floor(remaining / 50); remaining -= pennants * 50;
+  const fullBarbs = Math.floor(remaining / 10); remaining -= fullBarbs * 10;
+  const halfBarbs = Math.floor(remaining / 5);
+
+  // Barbs are drawn from the tip downward along the shaft
+  const barbLen   = 12;  // full barb length (px)
+  const barbAngle = 105;  // degrees from shaft (convention)
+  const barbStep  = 5;   // spacing along shaft between barbs
+  const rad       = barbAngle * Math.PI / 180;
+
+  let pos = tipY; // current position along shaft (y), starts at tip
+
+  // Pennants (filled triangles, 50kt each)
+  for (let i = 0; i < pennants; i++) {
+    const y0 = pos;
+    const y1 = pos + barbStep;
+    // Triangle: tip of shaft side, base at y1, point to the right
+    const px0 = cx,            py0 = y0;
+    const px1 = cx,            py1 = y1;
+    const px2 = cx + barbLen,  py2 = y0 + (barbStep / 2);
+    const tri = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+    tri.setAttribute('points', `${px0},${py0} ${px1},${py1} ${px2},${py2}`);
+    tri.setAttribute('fill', color); tri.setAttribute('stroke', color);
+    tri.setAttribute('stroke-width', 0.5);
+    g.appendChild(tri);
+    pos += barbStep + 1;
+  }
+
+  // Full barbs (10kt each)
+  for (let i = 0; i < fullBarbs; i++) {
+    const x2 = cx + barbLen * Math.sin(rad);
+    const y2 = pos + barbLen * Math.cos(rad);  // leans back toward base
+    const barb = document.createElementNS('http://www.w3.org/2000/svg','line');
+    barb.setAttribute('x1', cx); barb.setAttribute('y1', pos);
+    barb.setAttribute('x2', x2); barb.setAttribute('y2', y2);
+    barb.setAttribute('stroke', color); barb.setAttribute('stroke-width', strokeW);
+    barb.setAttribute('stroke-linecap','round');
+    g.appendChild(barb);
+    pos += barbStep;
+  }
+
+
+  // Half barb (5kt) — half the length, always last
+  if (halfBarbs) {
+    // If no full barbs or pennants, offset down from tip so it doesn't sit flush on the end
+    if (pennants === 0 && fullBarbs === 0) pos += barbStep;
+    const x2 = cx + (barbLen / 2) * Math.sin(rad);
+    const y2 = pos + (barbLen / 2) * Math.cos(rad);
+    const barb = document.createElementNS('http://www.w3.org/2000/svg','line');
+    barb.setAttribute('x1', cx); barb.setAttribute('y1', pos);
+    barb.setAttribute('x2', x2); barb.setAttribute('y2', y2);
+    barb.setAttribute('stroke', color); barb.setAttribute('stroke-width', strokeW);
+    barb.setAttribute('stroke-linecap','round');
+    g.appendChild(barb);
+  }
+
+  // Rotate entire barb group to wind direction
+  // Meteorological convention: dir is where wind comes FROM,
+  // so the shaft points FROM the station INTO the wind source.
+  g.setAttribute('transform', `rotate(${dirDeg}, ${cx}, ${cy})`);
+}
+
+let WxTemp = null;
+let WxDew = null;
+let sfcTemp = null;
+// ---- AMBIENT WEATHER ----
+async function fetchAmbient() {
+  try {
+    const { apiKey, appKey } = await getAmbientKeys();
+    const res = await fetch(`https://api.ambientweather.net/v1/devices?applicationKey=${appKey}&apiKey=${apiKey}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const devices = await res.json();
+    if (!devices.length) throw new Error('No devices found');
+    const d    = devices[0].lastData;
+    const info = devices[0].info;
+
+    document.getElementById('station-name').textContent = info?.name || 'Personal Weather Station';
+    document.getElementById('temp-val').textContent     = Math.round(d.tempf ?? 0);
+    document.getElementById('feels-val').textContent    = Math.round(d.feelsLike ?? d.tempf ?? 0) + '°';
+    document.getElementById('humidity-val').textContent = (d.humidity ?? '--') + '%';
+    document.getElementById('wind-val').textContent     = Math.round(d.windspeedmph ?? 0) + ' mph';
+    document.getElementById('winddir-val').textContent  = d.winddir != null ? degToCard(d.winddir) : '--';
+    document.getElementById('windgst-val').textContent  = d.maxdailygust != null ? Math.round(d.maxdailygust) + ' mph' : '--';
+
+    //make the temperature value a value that can be called for the sounding and skewt diagram
+    WxTemp = Math.round(d.tempf ?? 0);
+    WxDew = Math.round(d.dewPoint ?? 0);
+    if (currentSoundingData) {
+      plotSkewT(currentSoundingData);
+    }
+
+    // Wind barb — replaces the old wind-arrow rotate + rose-speed lines
+    const windSpeedMph = Math.round(d.windspeedmph ?? 0);
+    const windDir      = d.winddir ?? 0;
+    //document.getElementById('rose-speed').textContent = windSpeedMph + ' mph';
+    document.getElementById('rose-speed').textContent = d.windgustmph != null ? Math.round(d.windgustmph) + ' mph' : '--';
+    drawWindBarb(windSpeedMph, windDir);
+
+    document.getElementById('pressure-val').textContent = d.baromrelin != null ? (d.baromrelin*33.86389).toFixed(1) + ' mb' : '-- mb';
+    document.getElementById('rain-val').textContent     = d.dailyrainin != null ? d.dailyrainin.toFixed(2) + '"' : '0.00"';
+    document.getElementById('dew-val').textContent      = d.dewPoint != null ? Math.round(d.dewPoint) + '°' : '--°';
+    document.getElementById('uv-val').textContent       = d.uv ?? '--';
+    document.getElementById('solar-val').textContent =d.solarradiation != null ? Math.round(d.solarradiation) + ' W/m²' : '--';
+
+    let cond = 'Clear';
+    if      ((d.dailyrainin ?? 0) > 0.1) cond = 'Rain';
+    else if ((d.humidity ?? 0) > 90)     cond = 'Fog / Overcast';
+    else if ((d.humidity ?? 0) > 75)     cond = 'Mostly Cloudy';
+    else if ((d.windspeedmph ?? 0) > 20) cond = 'Windy';
+    document.getElementById('condition-val').textContent = cond;
+
+    document.getElementById('wx-loading').style.display = 'none';
+    const c = document.getElementById('wx-content');
+    c.style.display = 'flex';
+
+    const windStr = `${Math.round(d.windspeedmph ?? 0)} mph ${d.winddir != null ? degToCard(d.winddir) : ''}`.trim();
+    const wxContent = [
+      `Currents: ${Math.round(d.tempf ?? 0)}°F — ${cond}`,
+      `Feels Like: ${Math.round(d.feelsLike ?? d.tempf ?? 0)}°F`,
+      `Wind: ${windStr}`,
+      `Humidity: ${d.humidity ?? '--'}%`,
+      `Pressure: ${d.baromrelin != null ? d.baromrelin.toFixed(2) : '--'}"`,
+      `Rain Today: ${d.dailyrainin != null ? d.dailyrainin.toFixed(2) : '0.00'}"`,
+      `Dew Point: ${d.dewPoint != null ? Math.round(d.dewPoint) : '--'}°F`,
+      `UV Index: ${d.uv ?? '--'}`,
+    ].join('<span class="tick-sep">///</span>');
+    document.getElementById('ticker').dataset.wx = wxContent;
+    updateTicker();
+
+    document.getElementById('last-updated').textContent = 'AWx: ' + new Date().toLocaleTimeString();
+  } catch(e) {
+    document.getElementById('wx-loading').textContent = 'Station error: ' + e.message;
+    console.error('Ambient Weather:', e);
+  }
+}
+
+// ---- FORECAST — NWS API----
+async function fetchForecast() {
+  try {
+    // NWS requires a two-step lookup: gridpoint first, then forecast
+    const pointRes = await fetch(`https://api.weather.gov/points/${LAT},${LON}`);
+    const pointData = await pointRes.json();
+    const forecastUrl = pointData.properties.forecast;
+
+    const fcRes = await fetch(forecastUrl);
+    const fcData = await fcRes.json();
+    const periods = fcData.properties.periods;
+
+    // NWS returns periods in day/night pairs — grab just the daytime ones
+    const days = periods.filter(p => p.isDaytime).slice(0, 5);
+    // Pull the matching night period for the low temp
+    const nights = periods.filter(p => !p.isDaytime);
+
+    let html = '';
+    days.forEach((day, i) => {
+      const night = nights[i];
+      const dayName = new Date(day.startTime).toLocaleDateString('en-US', {weekday:'short'});
+      html += `<div class="forecast-row">
+        <span class="forecast-day">${dayName}</span>
+        <span class="forecast-icon">${getIcon(day.shortForecast)}</span>
+        <span class="forecast-desc">${day.shortForecast}</span>
+        <span class="forecast-temps">${day.temperature}° / <span class="forecast-lo">${night ? night.temperature + '°' : '--'}</span></span>
+      </div>`;
+    });
+    document.getElementById('forecast-list').innerHTML = html;
+  } catch(e) {
+    document.getElementById('forecast-list').innerHTML = '<div style="color:var(--muted);font-size:11px;padding:8px;">Forecast unavailable</div>';
+  }
+}
+
+function getIcon(forecast) {
+  const f = forecast.toLowerCase();
+  if (f.includes('thunder')) return '⛈';
+  if (f.includes('snow') || f.includes('blizzard')) return '❄️';
+  if (f.includes('sleet') || f.includes('wintry mix')) return '🌨';
+  if (f.includes('rain') || f.includes('shower')) return '🌧';
+  if (f.includes('drizzle')) return '🌦';
+  if (f.includes('fog')) return '🌫';
+  if (f.includes('sunny') || f.includes('clear')) return '☀️';
+  if (f.includes('mostly sunny') || f.includes('mostly clear')) return '🌤';
+  if (f.includes('partly')) return '⛅';
+  if (f.includes('cloudy') || f.includes('overcast')) return '☁️';
+  if (f.includes('wind')) return '💨';
+  return '🌡';
+}
+
+// ---- NWS CLI — Climate Normals ----
+// Actual format (from NWS DVN/CID):
+//   MAXIMUM         51    426 PM  82    2012  47      4       76
+//   MINIMUM         23    649 AM   2    1923  28     -5       37
+// Columns:         OBSERVED | TIME | RECORD VALUE | RECORD YEAR | NORMAL | DEPARTURE | LAST YEAR
+// PRECIPITATION:
+//   YESTERDAY        0.00                1.00          1923        0.06      -0.06        0.00
+async function fetchCLI() {
+  try {
+    const listRes  = await fetch('https://api.weather.gov/products/types/CLI/locations/CID');
+    const listJson = await listRes.json();
+    const latestId = listJson['@graph']?.[0]?.['@id'];
+    //console.log('Latest CLI product ID:', latestId);
+    //console.log('CLI Product List:', listJson['@graph']);
+    //console.log('###################################')
+    //console.log('List', listJson);
+    if (!latestId) throw new Error('No CLI products found');
+    const res  = await fetch(latestId);
+    const json = await res.json();
+    const text = json.productText || '';
+
+    const hiMatch  = text.match(/MAXIMUM\s+(-?\d+|MM)\s+[\d\s]+?(?:[AP]M)\s+(-?\d+|MM)\s+(\d{4})\s+(-?\d+)/i);
+    const loMatch  = text.match(/MINIMUM\s+(-?\d+|MM)\s+[\d\s]+?(?:[AP]M)\s+(-?\d+|MM)\s+(\d{4})\s+(-?\d+)/i);
+    const pcpMatch = text.match(/^\s*(?:TODAY|YESTERDAY)\s+([\d\.T]+)\s+([\d\.T]+)\s+(\d{4})\s+([\d\.T]+)/im);
+    //const pcpMTDMatch = text.match(/MONTH TO DATE\s+([\d\.T]+)\s+([\d\.T]+)\s+(-?[\d\.T]+)/i);
+    const pcpYTDMatch = text.match(/SINCE JAN 1\s+([\d\.T]+)\s+([\d\.T]+)\s+(-?[\d\.T]+)/i);
+    //console.log('CLI Match for Precipitation:', pcpYTDMatch);
+    const dateMatch = text.match(/CEDAR RAPIDS.*?(\b(?:JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)\s+\d{1,2}\s+\d{4})/i)
+                   || text.match(/((?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*\s+\d{1,2}\s+\d{4})/i);
+
+    document.getElementById('cli-hi').textContent     = hiMatch  ? hiMatch[4]  + '°' : '--°';
+    document.getElementById('cli-lo').textContent     = loMatch  ? loMatch[4]  + '°' : '--°';
+    document.getElementById('cli-rhi').textContent    = hiMatch  ? hiMatch[2]  + '°' : '--°';
+    document.getElementById('cli-rhi-yr').textContent = hiMatch  ? hiMatch[3]        : '';
+    document.getElementById('cli-rlo').textContent    = loMatch  ? loMatch[2]  + '°' : '--°';
+    document.getElementById('cli-rlo-yr').textContent = loMatch  ? loMatch[3]        : '';
+    document.getElementById('cli-pcp').textContent    = pcpMatch ? pcpMatch[4] + '"' : '--"';
+    document.getElementById('cli-pcp-ytd').textContent = pcpYTDMatch ? pcpYTDMatch[1] + '"' : '--"';
+    document.getElementById('cli-pcp-ytd-dep').textContent = pcpYTDMatch ? pcpYTDMatch[3] + '"' : '--"';
+
+    //console.log('CLI Product Text:', pcpMatch);
+
+    if (pcpYTDMatch) {
+      const ytdObs = pcpYTDMatch[1];
+      const ytdDep = pcpYTDMatch[3]; // This is the departure (e.g., "0.90" or "-0.52")
+      
+      const depElement = document.getElementById('cli-pcp-ytd-dep');
+      const ytdElement = document.getElementById('cli-pcp-ytd');
+
+      // Set the observed YTD value
+      ytdElement.textContent = ytdObs + '"';
+
+      // Handle the Departure Logic
+      const depValue = parseFloat(ytdDep);
+
+      if (isNaN(depValue)) {
+          // Handle "T" (Trace) or "MM" (Missing)
+          depElement.textContent = ytdDep;
+          depElement.classList.remove('negative');
+      } else if (depValue > 0) {
+          // Positive: Add plus sign, ensure green
+          depElement.textContent = '+' + ytdDep + '"';
+          depElement.classList.remove('negative');
+      } else if (depValue < 0) {
+          // Negative: Keep its own minus sign, change to red
+          depElement.textContent = ytdDep + '"';
+          depElement.classList.add('negative');
+      } else {
+          // Exactly zero
+          depElement.textContent = '0.00"';
+          depElement.classList.remove('negative');
+      }
+    }
+    //document.getElementById('cli-date').textContent   = dateMatch ? dateMatch[1]     : 'NWS DVN/CID';
+  } catch(e) {
+    console.error('CLI parse error:', e);
+  }
+}
+
+// NWS Alert time formatting for ticker
+function formatAlertTime(isoString) {
+  if (!isoString) return 'unknown';
+  const date = new Date(isoString);
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const month  = months[date.getMonth()];
+  const day    = date.getDate();
+  const hour   = date.getHours();
+
+  // Ordinal suffix
+  const suffix = day === 1 || day === 21 || day === 31 ? 'st'
+               : day === 2 || day === 22            ? 'nd'
+               : day === 3 || day === 23            ? 'rd'
+               : 'th';
+
+  // 12hr format
+  const h12   = hour % 12 || 12;
+  const ampm  = hour >= 12 ? 'PM' : 'AM';
+
+  return `${month}. ${day}${suffix} at ${h12} ${ampm}`;
+}
+
+///```
+///For the two alerts you shared right now that would produce ticker entries like:
+///```
+///⚠ A "Red Flag Warning" has been issued from Mar. 28th at 10am until Mar. 28th at 9pm
+/// ⚠ A "Special Weather Statement" has been issued from Mar. 27th at 11am until Mar. 27th at 6pm
+
+// ---- ALERTS AUTO-SCROLL ----
+function maybeScrollAlerts() {
+  const outer = document.getElementById('alert-content');
+  const inner = document.getElementById('alert-content-inner');
+  if (!outer || !inner) return;
+
+  // Remove any existing animation so measurements are clean
+  inner.classList.remove('scrolling');
+  inner.style.removeProperty('--alert-scroll-dist');
+  inner.style.removeProperty('--alert-scroll-dur');
+
+  // Wait a frame so the browser has laid out the new content
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const outerH = outer.clientHeight;
+      const innerH = inner.scrollHeight;
+      const overflow = innerH - outerH;
+
+      if (overflow > 10) {
+        // Distance to scroll (negative = scroll up)
+        const dist = -overflow;
+        // Duration scales with content length: ~2s per 50px, min 8s, max 40s --- to slow the scroll speed increase the last digit in the formula (e.g. change +6 to +10)
+        const dur = Math.min(40, Math.max(8, Math.round(Math.abs(dist) / 50) * 2 + 10));
+        inner.style.setProperty('--alert-scroll-dist', `${dist}px`);
+        inner.style.setProperty('--alert-scroll-dur', `${dur}s`);
+        inner.classList.add('scrolling');
+      }
+    });
+  });
+}
+
+let activeAlertTicker = '';
+let sunriseDate  = null;
+let sunsetDate   = null;
+let moonriseDate = null;
+let moonsetDate  = null;
+let moonPhase    = 0; // 0–1 illumination fraction
+let moonWaxing  = true; // true = waxing, false = waning
+let sunArcTimer  = null;
+
+function updateTicker() {
+  const wxTicker = document.getElementById('ticker').dataset.wx || '';
+  if (!wxTicker) return; // ambient hasn't loaded yet, it will call us when ready
+  document.getElementById('ticker').innerHTML = activeAlertTicker
+    ? activeAlertTicker + '<span class="tick-sep">///</span>' + wxTicker
+    : wxTicker;
+}
+
+function drawSunArc() {
+  const canvas = document.getElementById('sun-arc');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  //const now = new Date();
+  //const now = new Date('2026-03-30T16:23:00'); // TEST — remove when done
+  const now = getNow();
+  const cx  = W / 2, cy = H - 2;
+  const rx  = W / 2 - 4;
+  const ry  = H - 6;
+
+  const isSunUp  = sunriseDate  && sunsetDate   && now >= sunriseDate  && now <= sunsetDate;
+  const isMoonUp = moonriseDate && moonsetDate  && now >= moonriseDate && now <= moonsetDate;
+
+
+  // ---- Arc line ----
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx, ry, 0, Math.PI, 0, false);
+  ctx.strokeStyle = isSunUp ? 'rgba(255,200,60,0.35)' : 'rgba(100,140,180,0.25)';
+  ctx.lineWidth   = 1.5;
+  if (!isSunUp) ctx.setLineDash([3, 4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // ---- Horizon line ----
+  ctx.beginPath();
+  ctx.moveTo(cx - rx - 2, cy);
+  ctx.lineTo(cx + rx + 2, cy);
+  ctx.strokeStyle = 'rgba(100,140,180,0.2)';
+  ctx.lineWidth   = 1;
+  ctx.stroke();
+
+  // ---- Sun dot ----
+  if (sunriseDate && sunsetDate) {
+    const total    = sunsetDate - sunriseDate;
+    const elapsed  = now - sunriseDate;
+    const progress = Math.max(0, Math.min(1, elapsed / total));
+    const angle    = Math.PI - progress * Math.PI;
+    const sx = cx + rx * Math.cos(angle);
+    const sy = cy - ry * Math.sin(angle);
+
+    if (isSunUp) {
+      // Glow
+      const grd = ctx.createRadialGradient(sx, sy, 1, sx, sy, 7);
+      grd.addColorStop(0, 'rgba(255,210,60,0.5)');
+      grd.addColorStop(1, 'rgba(255,210,60,0)');
+      ctx.beginPath();
+      ctx.arc(sx, sy, 7, 0, Math.PI * 2);
+      ctx.fillStyle = grd;
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(sx, sy, 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffd43b';
+      ctx.fill();
+    } else {
+      // Sun below horizon — small dim dot at rise or set edge
+      ctx.beginPath();
+      ctx.arc(sx, sy, 3, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,210,60,0.25)';
+      ctx.fill();
+    }
+  }
+
+  // ---- Moon dot ----
+  if (moonriseDate && moonsetDate) {
+    const mTotal    = moonsetDate  - moonriseDate;
+    const mElapsed  = now - moonriseDate;
+    const mProgress = Math.max(0, Math.min(1, mElapsed / mTotal));
+    const mAngle    = Math.PI - mProgress * Math.PI;
+    const mx = cx + rx * Math.cos(mAngle);
+    const my = cy - ry * Math.sin(mAngle);
+
+    if (isMoonUp) {
+      const r = 4;
+      const isWaxing = moonWaxing;
+      // Draw moon phase using illumination fraction
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(mx, my, r, 0, Math.PI * 2);
+      ctx.clip(); // clip all drawing to the moon circle
+
+      // Dark side (full circle background)
+      ctx.beginPath();
+      ctx.arc(mx, my, r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(30,40,60,0.9)';
+      ctx.fill();
+
+      // illum goes 0→1 as moon goes new→full
+      // terminator x offset: at 0% illum = fully dark, 50% = half lit, 100% = fully lit
+      // terminator is an ellipse whose x-radius scales from r (new, hidden) to 0 (quarter) to r (full, lit)
+      const termX = r * Math.abs(1 - 2 * moonPhase); // 0 at full, r at new/full edges
+
+      // Lit half — waxing = right side lit, waning = left side lit
+      const litLeft  = isWaxing ? mx : mx - r;
+      const litRight = isWaxing ? mx + r : mx;
+
+      // Fill the lit half rectangle
+      ctx.beginPath();
+      ctx.rect(isWaxing ? mx : mx - r, my - r, r, r * 2);
+      ctx.fillStyle = 'rgba(220,230,255,0.9)';
+      ctx.fill();
+
+      // Draw the terminator ellipse to carve out or add the correct shape
+      ctx.beginPath();
+      ctx.ellipse(mx, my, termX, r, 0, 0, Math.PI * 2);
+      // If waxing and < 50%: terminator cuts into lit side (dark ellipse)
+      // If waxing and > 50%: terminator adds to lit side (lit ellipse)
+      ctx.fillStyle = moonPhase < 0.5
+        ? (isWaxing ? 'rgba(30,40,60,0.9)' : 'rgba(220,230,255,0.9)')
+        : (isWaxing ? 'rgba(220,230,255,0.9)' : 'rgba(30,40,60,0.9)');
+      ctx.fill();
+
+      ctx.restore();
+
+      // Outline
+      ctx.beginPath();
+      ctx.arc(mx, my, r, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(180,200,230,0.6)';
+      ctx.lineWidth   = 0.5;
+      ctx.stroke();
+    } else {
+      // Moon below horizon — dim outline only
+      ctx.beginPath();
+      ctx.arc(mx, my, 3, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(180,200,230,0.2)';
+      ctx.lineWidth   = 0.8;
+      ctx.stroke();
+    }
+  }
+}
+
+async function fetchMoon() {
+  try {
+    const now = getNow();
+    //const now    = new Date();
+    //const now = new Date('2026-03-30T16:23:00'); // TEST — remove when done
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    function dateStr(d) {
+      const y  = d.getFullYear();
+      const m  = String(d.getMonth() + 1).padStart(2, '0');
+      const dy = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${dy}`;
+    }
+
+    // Fetch today and tomorrow in parallel
+    const [resToday, resTomorrow] = await Promise.all([
+      fetch(`https://aa.usno.navy.mil/api/rstt/oneday?date=${dateStr(now)}&coords=${LAT},${LON}&tz=-6&dst=true`),
+      fetch(`https://aa.usno.navy.mil/api/rstt/oneday?date=${dateStr(tomorrow)}&coords=${LAT},${LON}&tz=-6&dst=true`)
+    ]);
+
+    const dataToday    = (await resToday.json()).properties?.data;
+    const dataTomorrow = (await resTomorrow.json()).properties?.data;
+    if (!dataToday) return;
+
+    const riseEntry = dataToday.moondata?.find(e => e.phen === 'Rise');
+    const setEntry  = dataToday.moondata?.find(e => e.phen === 'Set');
+
+    if (riseEntry?.time) {
+      const [rh, rm] = riseEntry.time.trim().split(' ')[0].split(':').map(Number);
+      moonriseDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), rh, rm);
+    }
+
+    if (setEntry?.time) {
+      const [sh, sm] = setEntry.time.trim().split(' ')[0].split(':').map(Number);
+      moonsetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), sh, sm);
+
+      // If moonset is before moonrise, it falls on the next calendar day
+      // Use tomorrow's actual moonset time from the second API call
+      if (moonriseDate && moonsetDate < moonriseDate) {
+        const tomorrowSetEntry = dataTomorrow?.moondata?.find(e => e.phen === 'Set');
+        if (tomorrowSetEntry?.time) {
+          const [tsh, tsm] = tomorrowSetEntry.time.trim().split(' ')[0].split(':').map(Number);
+          moonsetDate = new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate(), tsh, tsm);
+        } else {
+          // Fallback: just roll today's set time to tomorrow
+          moonsetDate.setDate(moonsetDate.getDate() + 1);
+        }
+      }
+    }
+
+    // fracillum comes back as e.g. "94%" — strip % and convert to 0–1
+    const fracField = dataToday.fracillum;
+    if (fracField != null) {
+      moonPhase = parseFloat(String(fracField).replace('%', '')) / 100;
+    }
+
+    const curPhase = (dataToday.curphase || '').toLowerCase();
+    moonWaxing = curPhase.includes('waxing') || curPhase === 'full moon';
+
+    //console.log('Moon rise:', moonriseDate, 'set:', moonsetDate, 'phase:', moonPhase, 'waxing:', moonWaxing);
+
+  } catch(e) {
+    console.error('Moon fetch error:', e);
+  }
+}
+
+
+async function fetchSun() {
+  try {
+    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&daily=sunrise,sunset&forecast_days=1&timezone=America%2FChicago`);
+    const data = await res.json();
+
+    //sunriseDate = data.daily?.sunrise?.[0] ? new Date(data.daily.sunrise[0]) : null;
+    //sunsetDate  = data.daily?.sunset?.[0]  ? new Date(data.daily.sunset[0])  : null;
+    // Rebase sunrise/sunset onto the test date
+    //Testing block to ensure the moon/sun data are working correctly 
+    
+    //const testNow = new Date('2026-03-23T14:00:00'); // TEST — remove when done
+    if (data.daily?.sunrise?.[0]) {
+      const s = new Date(data.daily.sunrise[0]);
+      const testNow = getNow();
+      sunriseDate = new Date(testNow.getFullYear(), testNow.getMonth(), testNow.getDate(), s.getHours(), s.getMinutes());
+    }
+    if (data.daily?.sunset?.[0]) {
+      const s = new Date(data.daily.sunset[0]);
+      const testNow = getNow();
+      sunsetDate = new Date(testNow.getFullYear(), testNow.getMonth(), testNow.getDate(), s.getHours(), s.getMinutes());
+    }
+
+    const sunrise = sunriseDate ? sunriseDate.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '--';
+    const sunset  = sunsetDate  ? sunsetDate.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})  : '--';
+    document.getElementById('sunrise-val').textContent = sunrise;
+    document.getElementById('sunset-val').textContent  = sunset;
+
+    await fetchMoon();
+    drawSunArc();
+
+    // Update sun position every minute
+    if (sunArcTimer) clearInterval(sunArcTimer);
+    sunArcTimer = setInterval(drawSunArc, 60 * 1000);
+  } catch(e) {
+    console.error('Sunrise/sunset fetch error:', e);
+  }
+}
+
+/*
+// ---- NWS ALERTS + SUNRISE/SUNSET ----
+async function fetchAlerts() {
+  try {
+    const [aRes, sRes] = await Promise.all([
+      fetch(`https://api.weather.gov/alerts/active?point=${LAT},${LON}`),
+      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&daily=sunrise,sunset&forecast_days=1&timezone=America%2FChicago`)
+    ]);
+    const aData = await aRes.json();
+    const sData = await sRes.json();
+    const alerts  = aData.features || [];
+    const sunrise = sData.daily?.sunrise?.[0] ? new Date(sData.daily.sunrise[0]).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '--';
+    const sunset  = sData.daily?.sunset?.[0]  ? new Date(sData.daily.sunset[0]).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})  : '--';
+
+    // Update sunrise/sunset — now in dedicated elements, always visible
+    document.getElementById('sunrise-val').textContent = sunrise;
+    document.getElementById('sunset-val').textContent  = sunset;
+
+
+    //         html += `<div class="alert-box"><div class="alert-head">${a.properties.event}</div>A ${a.properties.event} has been issued from ${formatAlertTime(onset)} until ${formatAlertTime(ends)}<br><br>${a.properties.description || a.properties.parameters.NWSheadline || ''}</div>`;
+    let html = '';
+    if (!alerts.length) {
+      html += `<div class="alert-box ok"><div class="alert-head">No Active Alerts</div>All clear for Cedar Rapids, IA</div>`;
+    } else {
+      alerts.forEach(a => {
+        const onset = a.properties.onset;
+        const ends  = a.properties.ends || a.properties.expires;
+        html += `<div class="alert-box">
+          <div class="alert-head">${a.properties.event}</div>
+          A ${a.properties.event} has been issued from ${formatAlertTime(onset)} until ${formatAlertTime(ends)}<br><br>
+          ${a.properties.parameters.NWSheadline || ''}
+        </div>`;
+      });
+    }
+    document.getElementById('alert-content-inner').innerHTML = html;
+    maybeScrollAlerts();
+
+    // Update ticker with active alerts
+    if (alerts.length) {
+      const alertTickerParts = alerts.map(a => {
+        const onset  = a.properties.onset;
+        const ends   = a.properties.ends || a.properties.expires;
+        return `⚠ A ${a.properties.event} has been issued from ${formatAlertTime(onset)} until ${formatAlertTime(ends)} // ${a.properties.instruction || a.properties.parameters.NWSheadline || ''} ⚠`;
+      });
+      // Prepend alert info to the existing ticker, separated by ///
+      const existingTicker = document.getElementById('ticker').innerHTML;
+      document.getElementById('ticker').innerHTML =
+        alertTickerParts.join('<span class="tick-sep">///</span>') +
+        '<span class="tick-sep">///</span>' +
+        existingTicker;
+    }
+  } catch(e) {
+    document.getElementById('alert-content-inner').innerHTML = '<div class="alert-box ok"><div class="alert-head">Alerts Unavailable</div>Could not reach NWS API</div>';
+  }
+}
+*/
+
+function truncateDescription(desc, plainText = false) {
+  if (!desc) return '';
+  const match = desc.search(/\n+Locations/i);
+  const trimmed = match !== -1 ? desc.slice(0, match) : desc;
+  return plainText
+    ? trimmed.replace(/\n+/g, ' // ').trim()
+    : trimmed.replace(/\n/g, '<br>');
+}
+
+// ---- NWS ALERTS + SUNRISE/SUNSET ----
+async function fetchAlerts() {
+  try {
+    const res  = await fetch(`https://api.weather.gov/alerts/active?point=${LAT},${LON}`);
+    const aData = await res.json();  
+    const alerts  = aData.features || [];
+    const hasWarning = alerts.some(a => a.properties.event && a.properties.event.includes('Warning'));
+
+    let html = '';
+    if (!alerts.length) {
+      html += `<div class="alert-box ok"><div class="alert-head">No Active Alerts</div>All clear for Cedar Rapids, IA</div>`;
+    } else {
+      alerts.forEach(a => {
+        const onset = a.properties.onset;
+        const ends  = a.properties.ends || a.properties.expires;
+        html += `<div class="alert-box">
+          <div class="alert-head">${a.properties.event}</div>
+          A ${a.properties.event} has been issued from ${formatAlertTime(onset)} until ${formatAlertTime(ends)}<br><br>
+          ${a.properties.event.includes('Warning')
+            ? truncateDescription(a.properties.description)
+            : (a.properties.parameters.NWSheadline?.[0] || a.properties.parameters.NWSheadline || '')}
+        </div>`;
+      });
+    }
+    document.getElementById('alert-content-inner').innerHTML = html;
+    maybeScrollAlerts();
+    //startAlertsCycle(alerts.length > 0 ? 2 * 60 * 1000 : 5000);
+    if (!hasWarning) {
+      startAlertsCycle(alerts.length > 0 ? 2 * 60 * 1000 : 5000);
+    } else {
+      clearTimeout(alertsTabTimer);
+    }
+
+    // Update ticker with active alerts
+    if (alerts.length) {
+      const alertTickerParts = alerts.map(a => {
+        const onset  = a.properties.onset;
+        const ends   = a.properties.ends || a.properties.expires;
+        //return `⚠ A ${a.properties.event} has been issued from ${formatAlertTime(onset)} until ${formatAlertTime(ends)} // ${a.properties.instruction || a.properties.parameters.NWSheadline || ''} ⚠`;
+        return `⚠ A ${a.properties.event} has been issued from ${formatAlertTime(onset)} until ${formatAlertTime(ends)} // ${a.properties.event.includes('Warning') ? truncateDescription(a.properties.description, true) : (a.properties.instruction || a.properties.parameters.NWSheadline || '')} ⚠`;
+      });
+      activeAlertTicker = alertTickerParts.join('<span class="tick-sep">///</span>');
+    } else {
+      activeAlertTicker = '';
+    }
+    updateTicker();
+  } catch(e) {
+    document.getElementById('alert-content-inner').innerHTML = '<div class="alert-box ok"><div class="alert-head">Alerts Unavailable</div>Could not reach NWS API</div>';
+  }
+}
+
+// ---- WX STORIES ----
+let wxStories        = [];
+let wxStoryIndex     = 0;
+let wxStoryTimer     = null;
+let alertsTabTimer   = null;
+let currentAlertsTab = 'alerts';
+
+async function fetchWxStories() {
+  try {
+    const res  = await fetch('https://api.weather.gov/offices/DVN/weatherstories');
+    const data = await res.json();
+    wxStories = (data.stories || []).filter(s => s.download);
+    buildStoryDots();
+  } catch(e) {
+    console.error('WxStories fetch error:', e);
+    wxStories = [];
+  }
+}
+
+function buildStoryDots() {
+  const dots = document.getElementById('story-dots');
+  dots.innerHTML = wxStories.map((_, i) =>
+    `<div id="dot-${i}" style="
+      width:6px;height:6px;border-radius:50%;
+      background:${i === 0 ? 'var(--accent)' : 'var(--muted)'};
+      transition:background 0.3s;
+    "></div>`
+  ).join('');
+}
+
+function showStory(index) {
+  if (!wxStories.length) return;
+  wxStoryIndex = index % wxStories.length;
+  const story  = wxStories[wxStoryIndex];
+  const img    = document.getElementById('story-img');
+
+  // Fade out, swap src, fade back in
+  img.style.opacity = '0';
+  setTimeout(() => {
+    img.src = story.download;
+    document.getElementById('story-title').textContent = story.title || '';
+    img.style.opacity = '1';
+  }, 600);
+
+  // Update dots
+  wxStories.forEach((_, i) => {
+    const dot = document.getElementById(`dot-${i}`);
+    if (dot) dot.style.background = i === wxStoryIndex ? 'var(--accent)' : 'var(--muted)';
+  });
+}
+
+function switchAlertsTab(tab) {
+  currentAlertsTab = tab;
+  clearTimeout(alertsTabTimer);
+  clearInterval(wxStoryTimer);
+
+  const tabAlerts  = document.getElementById('tab-alerts');
+  const tabStories = document.getElementById('tab-stories');
+  const alertCont  = document.getElementById('alert-content');
+  const storyCont  = document.getElementById('stories-content');
+
+  const activeStyle   = { color: 'var(--accent)', border: '2px solid var(--accent)' };
+  const inactiveStyle = { color: 'var(--muted)',  border: '2px solid transparent' };
+
+  if (tab === 'alerts') {
+    tabAlerts.style.color        = 'var(--accent)';
+    tabAlerts.style.borderBottom = '2px solid var(--accent)';
+    tabStories.style.color       = 'var(--muted)';
+    tabStories.style.borderBottom = '2px solid transparent';
+
+    // Fade out stories, fade in alerts
+    storyCont.style.opacity = '0';
+    setTimeout(() => {
+      storyCont.style.display = 'none';
+      alertCont.style.display = 'flex';
+      alertCont.style.opacity = '0';
+      setTimeout(() => { alertCont.style.opacity = '1'; }, 20);
+    }, 600);
+
+  } else {
+    tabStories.style.color       = 'var(--accent)';
+    tabStories.style.borderBottom = '2px solid var(--accent)';
+    tabAlerts.style.color        = 'var(--muted)';
+    tabAlerts.style.borderBottom = '2px solid transparent';
+
+    if (!wxStories.length) {
+      document.getElementById('story-img').src = '';
+      document.getElementById('story-title').textContent = 'No stories available';
+      return;
+    }
+
+    // Fade out alerts, fade in stories
+    alertCont.style.opacity = '0';
+    setTimeout(() => {
+      alertCont.style.display = 'none';
+      storyCont.style.display = 'flex';
+      storyCont.style.opacity = '0';
+      setTimeout(() => { storyCont.style.opacity = '1'; }, 20);
+    }, 600);
+
+    wxStoryIndex = 0;
+    showStory(0);
+
+    wxStoryTimer = setInterval(() => {
+      const next = wxStoryIndex + 1;
+      if (next >= wxStories.length) {
+        clearInterval(wxStoryTimer);
+        switchAlertsTab('alerts');
+        startAlertsCycle();
+      } else {
+        showStory(next);
+      }
+    }, 15 * 1000);
+  }
+}
+
+// Auto-cycle: show stories tab every 2 minutes for however long stories take, then back
+function startAlertsCycle(waitMs = 2 * 60 * 1000) {
+  clearTimeout(alertsTabTimer);
+  alertsTabTimer = setTimeout(() => {
+    if (wxStories.length > 0) {
+      switchAlertsTab('stories');
+    }
+  }, waitMs);
+}
+
+
+function getSPCTime() {
+  const now = new Date();
+
+  const year = String(now.getUTCFullYear()).slice(2);
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(now.getUTCDate()).padStart(2, '0');
+
+  const hour = now.getUTCHours() >= 12 ? "12" : "00";
+
+  return `${year}${month}${day}${hour}`;
+}
+
+async function fetchSPCSounding() {
+  const time = getSPCTime();
+
+  const urls = [
+    `https://www.spc.noaa.gov/exper/soundings/${time}_OBS/DVN.txt`,
+    `https://www.spc.noaa.gov/exper/soundings/${time}_OBS/ILX.txt`
+  ];
+
+  for (let url of urls) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+
+      const text = await res.text();
+      if (text.includes("ERROR") || text.length < 100) continue;
+
+      return text;
+    } catch {}
+  }
+
+  throw new Error("No sounding available");
+}
+
+function parseSPC(text) {
+  const lines = text.split("\n");
+  const data = [];
+
+  for (let line of lines) {
+
+    // Skip headers
+    if (!line.includes(",")) continue;
+
+    const parts = line.split(",").map(p => p.trim());
+
+    if (parts.length < 6) continue;
+
+    const pres = parseFloat(parts[0]);
+    const temp = parseFloat(parts[2]);
+    const dew  = parseFloat(parts[3]);
+    const wdir = parseFloat(parts[4]);
+    const wspd = parseFloat(parts[5]);
+
+    // Filter out invalid/missing values
+    if (
+      !isNaN(pres) &&
+      !isNaN(temp) &&
+      !isNaN(dew) &&
+      pres > 100 && pres < 1100 &&
+      temp > -100 && temp < 100
+    ) data.push({ pres, temp, dew, wdir, wspd }); 
+    //{data.push({ pres, temp, dew });}
+  }
+
+  //console.log("Parsed levels:", data.length);
+  return data;
+}
+
+
+function computeMLParcelPath(data) {
+  parcelType = 'ML';
+  // Find surface
+  const sfc = data
+    .filter(d => !isNaN(d.temp) && !isNaN(d.dew) && d.pres > 0)
+    .reduce((a, b) => a.pres > b.pres ? a : b);
+
+  if (!sfc) return null;
+
+  const sfcP     = sfc.pres;
+  const topP     = sfcP - 100; // 100 hPa mixed layer depth
+
+  // Get levels within the mixed layer
+  const mlLevels = data.filter(d =>
+    !isNaN(d.temp) && !isNaN(d.dew) &&
+    d.pres <= sfcP && d.pres >= topP
+  );
+
+  if (mlLevels.length < 2) return null;
+
+  // Helper: saturation vapor pressure (hPa)
+  function es(T_C) {
+    return 6.112 * Math.exp(17.67 * T_C / (T_C + 243.5));
+  }
+
+  // Helper: mixing ratio (kg/kg)
+  function mixingRatio(Td_C, P_hPa) {
+    const e = es(Td_C);
+    return 0.622 * e / (P_hPa - e);
+  }
+
+  // Helper: potential temperature (K)
+  function theta(T_C, P_hPa) {
+    return (T_C + 273.15) * Math.pow(1000 / P_hPa, 0.2854);
+  }
+
+  // Average theta and mixing ratio over the mixed layer using trapezoidal integration
+  let sumTheta = 0, sumW = 0, totalDP = 0;
+
+  for (let i = 1; i < mlLevels.length; i++) {
+    const p0 = mlLevels[i - 1].pres;
+    const p1 = mlLevels[i].pres;
+    const dP = Math.abs(p0 - p1);
+
+    const th0 = theta(mlLevels[i-1].temp, p0);
+    const th1 = theta(mlLevels[i].temp,   p1);
+    const w0  = mixingRatio(mlLevels[i-1].dew, p0);
+    const w1  = mixingRatio(mlLevels[i].dew,   p1);
+
+    sumTheta += (th0 + th1) / 2 * dP;
+    sumW     += (w0  + w1)  / 2 * dP;
+    totalDP  += dP;
+  }
+
+  if (totalDP === 0) return null;
+
+  const meanTheta = sumTheta / totalDP; // K
+  const meanW     = sumW     / totalDP; // kg/kg
+
+  // Convert mean theta back to temperature at surface pressure
+  const meanT_sfc = meanTheta * Math.pow(sfcP / 1000, 0.2854) - 273.15;
+  sfcTemp = (meanT_sfc * 9/5 + 32).toFixed(0);
+
+  // Convert mean mixing ratio back to dewpoint at surface pressure
+  const meanE   = meanW * sfcP / (0.622 + meanW);
+  const meanTd  = 243.5 * Math.log(meanE / 6.112) / (17.67 - Math.log(meanE / 6.112));
+
+  //console.log('ML parcel: meanT=', meanT_sfc.toFixed(1), 'meanTd=', meanTd.toFixed(1), 'sfcP=', sfcP);
+
+  // Now lift this mean parcel exactly like the surface parcel
+  // Reuse the same LCL and lifting functions from computeParcelPath
+
+  const TK    = meanT_sfc + 273.15;
+  const TdK   = meanTd + 273.15;
+  const T_LCL = 1 / (1 / (TdK - 56) + Math.log(TK / TdK) / 800) + 56;
+  const P_LCL = sfcP * Math.pow(T_LCL / TK, 3.4965);
+
+  function dryAdiabat(P) {
+    return (meanT_sfc + 273.15) * Math.pow(P / sfcP, 0.2854) - 273.15;
+  }
+
+  function thetaE(T_C, Td_C, P_hPa) {
+    const T  = T_C + 273.15;
+    const Td = Td_C + 273.15;
+    const e  = 6.112 * Math.exp(17.67 * Td_C / (Td_C + 243.5));
+    const r  = 0.622 * e / (P_hPa - e);
+    const Lv = 2.501e6;
+    const TL = 1 / (1 / (Td - 56) + Math.log(T / Td) / 800) + 56;
+    return T * Math.pow(1000 / P_hPa, 0.2854 * (1 - 0.28 * r)) *
+           Math.exp((3.376 / TL - 0.00254) * r * 1000 * (1 + 0.81 * r));
+  }
+
+  const thetaE_ml = thetaE(meanT_sfc, meanTd, sfcP);
+
+  function moistAdiabatTemp(P_hPa) {
+    const envLevel = data.reduce((closest, d) =>
+      Math.abs(d.pres - P_hPa) < Math.abs(closest.pres - P_hPa) ? d : closest
+    );
+    let T = envLevel.temp + 5;
+    for (let i = 0; i < 100; i++) {
+      const tE  = thetaE(T, T, P_hPa);
+      const err = tE - thetaE_ml;
+      if (Math.abs(err) < 0.001) break;
+      const dT  = 0.01;
+      const dtE = thetaE(T + dT, T + dT, P_hPa) - tE;
+      if (Math.abs(dtE) < 1e-10) break;
+      T -= err / (dtE / dT);
+      T  = Math.max(-100, Math.min(50, T));
+    }
+    return T;
+  }
+
+  // Build parcel path
+  const levels = [...data]
+    .filter(d => !isNaN(d.temp) && d.pres > 0 && d.pres <= sfcP)
+    .sort((a, b) => b.pres - a.pres);
+
+  const parcelPath = [];
+  parcelPath.push({ pres: sfcP, temp: meanT_sfc });
+
+  for (const level of levels) {
+    if (level.pres >= sfcP) continue;
+    const P = level.pres;
+    const parcelT = P >= P_LCL ? dryAdiabat(P) : moistAdiabatTemp(P);
+    parcelPath.push({ pres: P, temp: parcelT });
+  }
+
+  return { parcelPath, P_LCL, T_LCL: T_LCL - 273.15, meanT: meanT_sfc, meanTd ,sfcTemp};
+}
+
+function computeMUParcelPath(data) {
+  parcelType = 'MU';
+
+  // Find the most unstable level — highest thetaE in lowest 300 hPa
+  const sfc = data
+    .filter(d => !isNaN(d.temp) && !isNaN(d.dew) && d.pres > 0)
+    .reduce((a, b) => a.pres > b.pres ? a : b);
+  if (!sfc) return null;
+
+  const topP = sfc.pres - 300;
+
+  function es(T_C) {
+    return 6.112 * Math.exp(17.67 * T_C / (T_C + 243.5));
+  }
+  function thetaE(T_C, Td_C, P_hPa) {
+    const T  = T_C + 273.15;
+    const Td = Td_C + 273.15;
+    const e  = es(Td_C);
+    const r  = 0.622 * e / (P_hPa - e);
+    const TL = 1 / (1 / (Td - 56) + Math.log(T / Td) / 800) + 56;
+    return T * Math.pow(1000 / P_hPa, 0.2854 * (1 - 0.28 * r)) *
+           Math.exp((3.376 / TL - 0.00254) * r * 1000 * (1 + 0.81 * r));
+  }
+
+  // Pick the level with the highest thetaE within the lowest 300 hPa
+  const muLevel = data
+    .filter(d => !isNaN(d.temp) && !isNaN(d.dew) && d.pres >= topP && d.pres <= sfc.pres)
+    .reduce((best, d) => {
+      const te = thetaE(d.temp, d.dew, d.pres);
+      return te > thetaE(best.temp, best.dew, best.pres) ? d : best;
+    });
+  if (!muLevel) return null;
+
+  const sfcT  = muLevel.temp;
+  const sfcTd = muLevel.dew;
+  const sfcP  = muLevel.pres;
+  sfcTemp = (sfcT * 9/5 + 32).toFixed(0);
+
+  const TK    = sfcT  + 273.15;
+  const TdK   = sfcTd + 273.15;
+  const T_LCL = 1 / (1 / (TdK - 56) + Math.log(TK / TdK) / 800) + 56;
+  const P_LCL = sfcP  * Math.pow(T_LCL / TK, 3.4965);
+
+  function dryAdiabat(P) {
+    return (sfcT + 273.15) * Math.pow(P / sfcP, 0.2854) - 273.15;
+  }
+
+  const thetaE_mu = thetaE(sfcT, sfcTd, sfcP);
+
+  function moistAdiabatTemp(P_hPa) {
+    let T = (sfcT + 273.15) * Math.pow(P_hPa / sfcP, 0.2854) - 273.15;
+    for (let i = 0; i < 50; i++) {
+      const tE  = thetaE(T, T, P_hPa);
+      const err = tE - thetaE_mu;
+      if (Math.abs(err) < 0.01) break;
+      const dT  = 0.1;
+      const dtE = thetaE(T + dT, T + dT, P_hPa) - tE;
+      if (Math.abs(dtE) < 1e-10) break;
+      T -= err / (dtE / dT);
+      T  = Math.max(-100, Math.min(50, T));
+    }
+    return T;
+  }
+
+  const levels = [...data]
+    .filter(d => !isNaN(d.temp) && d.pres > 0 && d.pres <= sfcP)
+    .sort((a, b) => b.pres - a.pres);
+
+  const parcelPath = [];
+  parcelPath.push({ pres: sfcP, temp: sfcT });
+
+  for (const level of levels) {
+    if (level.pres >= sfcP) continue;
+    const P = level.pres;
+    const parcelT = P >= P_LCL ? dryAdiabat(P) : moistAdiabatTemp(P);
+    parcelPath.push({ pres: P, temp: parcelT });
+  }
+
+  return { parcelPath, P_LCL, T_LCL: T_LCL - 273.15, sfcTemp };
+}
+
+//console.log('Wx Station Temperature:', WxTemp);
+function computeParcelPath(data) {
+  // Find true surface — highest pressure level with valid temp+dew
+  const sfc = data
+    .filter(d => !isNaN(d.temp) && !isNaN(d.dew) && d.pres > 0)
+    .reduce((a, b) => a.pres > b.pres ? a : b);
+
+  if (!sfc) return null;
+
+  
+  //const sfcT  = sfc.temp;
+  //const sfcTd = sfc.dew;
+  //const sfcT = WxTemp ?? sfc.temp;
+  //const sfcTd = WxDew ?? sfc.dew;
+  //const sfcP  = sfc.pres;
+  //let sfcT = null;
+  //let sfcTd = null;
+  let sfcT, sfcTd, sfcP;
+
+  /*if (parcelMode === 'ML') {
+    return computeMLParcelPath(data);
+    /*
+    // --- Mixed Layer (lowest ~100 mb avg) ---
+    const mlLayer = data.filter(d => d.pres >= sfc.pres - 100);
+
+    sfcT = mlLayer.reduce((sum, d) => sum + d.temp, 0) / mlLayer.length;
+    sfcTd = mlLayer.reduce((sum, d) => sum + d.dew, 0) / mlLayer.length;
+    sfcP = sfc.pres;
+  */
+  if (parcelMode === 'WX') {
+    //console.log('Current Wx Station temp (ºF):', WxTemp, 'Dew Point (ºF):', WxDew);
+    WxTempC = Math.round((WxTemp-32) * 5/9);
+    WxDewC  = Math.round((WxDew-32)  * 5/9);
+    //console.log('Converted Wx Station temp (ºC):', WxTempC, 'Converted Wx Station dew (ºC):', WxDewC);
+
+    parcelType = 'WX';
+    // --- Surface-based using station temp ---
+    sfcT = WxTempC ?? sfc.temp;
+    sfcTd = WxDewC ?? sfc.dew; // you can also override this if you want
+    sfcP = sfc.pres;
+    sfcTemp = WxTemp;
+
+  } else {
+    // --- Default surface-based (sounding) ---
+    parcelType = 'SB';
+    sfcT = sfc.temp;
+    sfcTd = sfc.dew;
+    sfcP = sfc.pres;
+    sfcTemp = (sfcT*9/5 + 32).toFixed(0);
+  }
+
+  
+
+  // ---- LCL (Bolton 1980) ----
+  const TK    = sfcT  + 273.15;
+  const TdK   = sfcTd + 273.15;
+  const T_LCL = 1 / (1 / (TdK - 56) + Math.log(TK / TdK) / 800) + 56;
+  const P_LCL = sfcP * Math.pow(T_LCL / TK, 3.4965);
+
+  // ---- Dry adiabat ----
+  function dryAdiabat(P) {
+    return (sfcT + 273.15) * Math.pow(P / sfcP, 0.2854) - 273.15;
+  }
+
+  // ---- Equivalent potential temperature (Bolton 1980) ----
+  // Conserved during moist adiabatic ascent
+  function thetaE(T_C, Td_C, P_hPa) {
+    const T  = T_C + 273.15;
+    const Td = Td_C + 273.15;
+    const e  = 6.112 * Math.exp(17.67 * Td_C / (Td_C + 243.5));
+    const r  = 0.622 * e / (P_hPa - e); // mixing ratio kg/kg
+    const Lv = 2.501e6;
+    const cp = 1005;
+    const TL = 1 / (1 / (Td - 56) + Math.log(T / Td) / 800) + 56; // LCL temp K
+    return T * Math.pow(1000 / P_hPa, 0.2854 * (1 - 0.28 * r)) *
+           Math.exp((3.376 / TL - 0.00254) * r * 1000 * (1 + 0.81 * r));
+  }
+
+  // ---- Moist adiabatic temperature from theta-e ----
+  // Given theta-e, find T at pressure P by iterative Newton method
+  const thetaE_sfc = thetaE(sfcT, sfcTd, sfcP);
+
+  function moistAdiabatTemp(P_hPa, thetaE_target) {
+    // First guess: dry adiabat
+    let T = (sfcT + 273.15) * Math.pow(P_hPa / sfcP, 0.2854) - 273.15;
+
+    // Newton-Raphson iteration to find T such that thetaE(T, T_sat, P) = thetaE_target
+    for (let i = 0; i < 50; i++) {
+      // At saturation, Td = T
+      const tE = thetaE(T, T, P_hPa);
+      const err = tE - thetaE_target;
+      if (Math.abs(err) < 0.01) break;
+      // Numerical derivative
+      const dT   = 0.1;
+      const dtE  = thetaE(T + dT, T + dT, P_hPa) - tE;
+      T -= err / (dtE / dT);
+    }
+    return T;
+  }
+
+  // ---- Build parcel path ----
+  const levels = [...data]
+    .filter(d => !isNaN(d.temp) && d.pres > 0 && d.pres <= sfcP)
+    .sort((a, b) => b.pres - a.pres); // surface first
+
+  const parcelPath = [];
+  parcelPath.push({ pres: sfcP, temp: sfcT });
+
+  for (const level of levels) {
+    if (level.pres >= sfcP) continue;
+    const P = level.pres;
+    let parcelT;
+
+    if (P >= P_LCL) {
+      parcelT = dryAdiabat(P);
+    } else {
+      parcelT = moistAdiabatTemp(P, thetaE_sfc);
+    }
+
+    parcelPath.push({ pres: P, temp: parcelT });
+  }
+
+  return { parcelPath, P_LCL, T_LCL: T_LCL - 273.15 ,sfcTemp};
+}
+
+function plotSkewT(data) {
+  const pressure = data.map(d => d.pres); // hPa
+  const temp = data.map(d => d.temp);     // °C
+  const dew = data.map(d => d.dew);       // °C
+
+  const P0 = 1000;            // Rotation point (1000 hPa)
+  const skewAngleDeg = 35;    // Skew angle from vertical
+  const skewAngle = skewAngleDeg * Math.PI / 180;
+  const scaleFactor = 40;     // Adjust to make the skew visually strong
+
+  // 1. Convert pressure to linear Y relative to 1000 hPa
+  const Y_lin = pressure.map(p => Math.log(P0 / p));
+
+  // 2. Rotate temperature and dewpoint about 1000 hPa
+  const skewTemp = temp.map((t, i) => t + Y_lin[i] * Math.tan(skewAngle) * scaleFactor);
+  const skewDew  = dew.map((d, i) => d + Y_lin[i] * Math.tan(skewAngle) * scaleFactor);
+
+  // 3. Create traces
+  const traceTemp = {
+    x: skewTemp,
+    y: pressure,
+    mode: 'lines',
+    line: { color: 'red' },
+    name: 'Temperature'
+  };
+
+  const traceDew = {
+    x: skewDew,
+    y: pressure,
+    mode: 'lines',
+    line: { color: 'green' },
+    name: 'Dewpoint'
+  };
+
+  // Optional: plot a test trace to see rotation
+  const traceTest = {
+    x: skewTemp,
+    y: pressure,
+    mode: 'lines',
+    line: { color: 'orange', dash: 'dot' },
+    name: 'Test'
+  };
+
+  // 4. Generate skewed isotherms
+  const pMin = 100; // hPa
+  const pMax = 1050;
+  const isotherms = [];
+  for (let t = -100; t <= 40; t += 10) {
+    isotherms.push({
+      type: 'line',
+      x0: t, // bottom at 1000 hPa
+      y0: pMax,
+      x1: t + Math.log(P0 / pMin) * Math.tan(skewAngle) * scaleFactor,
+      y1: pMin,
+      line: { color: 'rgba(255,255,255,0.2)', width: 1 , dash: 'dot'}
+    });
+  }
+
+
+  
+  // 5. Compute parcel path
+  //const parcelResult = computeParcelPath(data);
+  //let parcelTraces = [];
+  //let capeShapes   = [];
+  // Try surface parcel first, fall back to mixed layer parcel
+  //let parcelResult = computeParcelPath(data); //← was modified to use current Wx Station temp/dew instead of SPC surface level, but keep original as fallback if that fails
+  let parcelResult = getParcelPath(data);
+  const activeParcelType = parcelType;
+  //let parcelType   = 'SB';
+
+  /*
+  if (parcelResult) {
+    const sbInvalid = parcelResult.parcelPath.some(pt => {
+      if (pt.pres < 500) return false;
+      const env = data.reduce((closest, d) =>
+        Math.abs(d.pres - pt.pres) < Math.abs(closest.pres - pt.pres) ? d : closest
+      );
+      return !isNaN(env.dew) && pt.temp < env.dew;
+    });
+    if (sbInvalid) {
+      parcelResult = null;
+    }
+  }
+  if (!parcelResult) {
+    parcelResult = computeMLParcelPath(data);
+    //parcelType   = 'ML';
+    //.log('SB parcel invalid — using ML parcel');
+  }
+  */
+
+  let parcelTraces = [];
+  let CAPE = 0;
+
+  if (parcelResult) {
+    const { parcelPath } = parcelResult;
+    const P0 = 1000;
+    const skewAngle   = 35 * Math.PI / 180;
+    const scaleFactor = 40;
+
+    // Skew the parcel temps same way as environment
+    const parcelSkew = parcelPath.map(pt => {
+      const y_lin = Math.log(P0 / pt.pres);
+      return pt.temp + y_lin * Math.tan(skewAngle) * scaleFactor;
+    });
+
+
+    const parcelPres = parcelPath.map(pt => pt.pres);
+
+    if (parcelResult) {
+        const { parcelPath } = parcelResult;
+
+        // Check if parcel ever goes colder than environment dewpoint
+      const parcelInvalid = parcelPath.some(pt => {
+          if (pt.pres < 500) return false; // only check below 500 hPa
+          const env = data.reduce((closest, d) =>
+            Math.abs(d.pres - pt.pres) < Math.abs(closest.pres - pt.pres) ? d : closest
+          );
+          return !isNaN(env.dew) && pt.temp < env.dew;
+        });
+
+        let capeEl = document.getElementById('cape-readout');
+
+        //if (capeEl) capeEl.innerHTML = '';
+        if (!capeEl) {
+          capeEl = document.createElement('div');
+          capeEl.id = 'cape-readout';
+          document.getElementById('skewt').appendChild(capeEl);
+        }
+        capeEl.style.cssText = `
+          position: absolute;
+          bottom: 150px;
+          right: 8px;
+          z-index: 20;
+          font-family: 'IBM Plex Mono', monospace;
+          font-size: 11px;
+          text-align: right;
+          pointer-events: none;
+          line-height: 1.6;
+        `;
+        capeEl.innerHTML = `<span style="color:var(--muted);font-size:9px;letter-spacing:1px;">${activeParcelType} CAPE</span><br>
+          <span style="color:var(--muted);font-size:16px;font-weight:500;">0</span>
+          <span style="color:var(--muted);font-size:9px;">J/kg</span>`;
+
+        if (!parcelInvalid) {
+          const P0 = 1000;
+          const skewAngle   = 35 * Math.PI / 180;
+          const scaleFactor = 40;
+
+          const parcelSkew = parcelPath.map(pt => {
+            const y_lin = Math.log(P0 / pt.pres);
+            return pt.temp + y_lin * Math.tan(skewAngle) * scaleFactor;
+          });
+          const parcelPres = parcelPath.map(pt => pt.pres);
+
+          const traceParcel = {
+            x: parcelSkew,
+            y: parcelPres,
+            mode: 'lines',
+            line: { color: 'yellow', width: 1.5, dash: 'dot' },
+            name: activeParcelType === 'SB' ? 'SB Parcel' : (activeParcelType === 'WX' ? 'SB_Wx Parcel' : 'ML Parcel')
+          };
+
+          const capeSegments = [];
+          let inCape = false;
+          let currentSeg = { parcelX: [], envX: [], Y: [] };
+
+          for (let i = 0; i < parcelPath.length; i++) {
+            const P      = parcelPath[i].pres;
+            const y_lin  = Math.log(P0 / P);
+            const skewOff = y_lin * Math.tan(skewAngle) * scaleFactor;
+
+            const env = data.reduce((closest, d) =>
+              Math.abs(d.pres - P) < Math.abs(closest.pres - P) ? d : closest
+            );
+
+            const skewEnvT    = env.temp + skewOff;
+            const skewParcelT = parcelSkew[i];
+
+            const aboveLCL   = P <= parcelResult.P_LCL;
+            const isPositive = skewParcelT > skewEnvT && aboveLCL;
+
+            if (isPositive) {
+              if (!inCape) {
+                inCape = true;
+                currentSeg = { parcelX: [], envX: [], Y: [] };
+              }
+              currentSeg.parcelX.push(skewParcelT);
+              currentSeg.envX.push(skewEnvT);
+              currentSeg.Y.push(P);
+            } else {
+              if (inCape) {
+                inCape = false;
+                capeSegments.push({ ...currentSeg });
+              }
+            }
+          }
+          if (inCape) capeSegments.push({ ...currentSeg });
+
+          const capeTraces = capeSegments.map(seg => ({
+            x: [...seg.parcelX, ...seg.envX.slice().reverse()],
+            y: [...seg.Y,       ...seg.Y.slice().reverse()],
+            fill: 'toself',
+            fillcolor: 'rgba(255, 220, 0, 0.15)',
+            line: { width: 0 },
+            mode: 'lines',
+            showlegend: false
+          }));
+
+          // ---- Calculate CAPE from cape segments ----
+          //console.log('capeSegments count:', capeSegments.length, 'parcelType:', parcelType);
+          // ---- Calculate CAPE from cape segments ----
+          let CAPE = 0;
+          for (const seg of capeSegments) {
+            for (let i = 0; i < seg.Y.length - 1; i++) {
+              const P1  = seg.Y[i];
+              const P2  = seg.Y[i + 1];
+
+              // Un-skew parcel and env temps at each level
+              const skewOff1 = Math.log(P0 / P1) * Math.tan(skewAngle) * scaleFactor;
+              const skewOff2 = Math.log(P0 / P2) * Math.tan(skewAngle) * scaleFactor;
+
+              const tParcel1 = seg.parcelX[i]     - skewOff1;
+              const tParcel2 = seg.parcelX[i + 1] - skewOff2;
+              const tEnv1    = seg.envX[i]         - skewOff1;
+              const tEnv2    = seg.envX[i + 1]     - skewOff2;
+
+              // Convert to Kelvin
+              const TvP1 = tParcel1 + 273.15;
+              const TvP2 = tParcel2 + 273.15;
+              const TvE1 = tEnv1    + 273.15;
+              const TvE2 = tEnv2    + 273.15;
+
+              // Average buoyancy across layer
+              const b1 = 9.81 * (TvP1 - TvE1) / TvE1;
+              const b2 = 9.81 * (TvP2 - TvE2) / TvE2;
+              const bAvg = (b1 + b2) / 2;
+
+              // Layer thickness via hypsometric equation
+              const TvAvg = (TvP1 + TvP2) / 2;
+              const dz    = (287.05 * TvAvg / 9.81) * Math.log(P1 / P2);
+
+              CAPE += bAvg * dz;
+            }
+          }
+          CAPE = Math.max(0, Math.round(CAPE));
+
+          // ---- CAPE readout — bottom right of sounding panel ----
+          let capeEl = document.getElementById('cape-readout');
+          if (!capeEl) {
+            capeEl = document.createElement('div');
+            capeEl.id = 'cape-readout';
+            document.getElementById('skewt').appendChild(capeEl);
+          }
+          capeEl.style.cssText = `
+            position: absolute;
+            bottom: 150px;
+            right: 8px;
+            z-index: 20;
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            text-align: right;
+            pointer-events: none;
+            line-height: 1.6;
+          `;
+          const capeColor = CAPE > 2500 ? '#ff4444'
+                          : CAPE > 1000 ? '#ffaa00'
+                          : CAPE > 500  ? '#ffd43b'
+                          : CAPE > 0    ? '#80e0a0'
+                          : 'var(--muted)';
+          capeEl.innerHTML = `<span style="color:var(--muted);font-size:9px;letter-spacing:1px;">${activeParcelType} CAPE</span><br>
+            <span style="color:${capeColor};font-size:16px;font-weight:500;">${CAPE}</span>
+            <span style="color:var(--muted);font-size:9px;">J/kg</span>`;
+            
+
+          parcelTraces = [...capeTraces, traceParcel];
+
+          // Label at the bottom of the parcel path (highest pressure = lowest altitude)
+          const labelPoint = parcelPath.reduce((a, b) => a.pres > b.pres ? a : b);
+          const labelSkewX = labelPoint.temp + Math.log(P0 / labelPoint.pres) * Math.tan(skewAngle) * scaleFactor;
+          parcelTraces.push({
+            x: [labelSkewX + 1.5],
+            y: [labelPoint.pres],
+            mode: 'text',
+            text: [activeParcelType+ ' — ' + sfcTemp + '°F'],
+            textposition: 'middle right',
+            textfont: { color: 'rgba(255,220,0,0.7)', size: 9, family: 'IBM Plex Mono, monospace' },
+            showlegend: false,
+          });
+        } 
+      }
+    }
+
+    
+
+  // 6. Plot with Plotly
+  Plotly.newPlot('skewt', [traceTemp, traceDew, ...parcelTraces], {
+    margin: { l: 40, r: 10, t: 10, b: 30 },
+    paper_bgcolor: '#111720',
+    plot_bgcolor: '#111720',
+    font: { color: '#e8f0f8', size: 10 },
+    xaxis: {
+      title: 'Temperature (°C)',
+      //range: [-50, 30], // expand to fit skewed lines
+      range: [
+        (Math.round((Math.min(...skewTemp, ...skewDew) - 10)/10)*10)+5,
+        (Math.round((Math.max(...skewTemp) + 10)/10)*10)+10
+      ],
+      showgrid: false,
+      zeroline: false
+    },
+    yaxis: {
+      title: 'Pressure (hPa)',
+      type: 'log',
+      range: [Math.log10(pMax), Math.log10(pMin)],
+      autorange: false,
+      showgrid: true,
+      gridcolor: 'rgba(255,255,255,0.1)',
+      autorange: false,
+      autorange: false
+    },
+    shapes: isotherms,
+    showlegend: false
+  }, { displayModeBar: false });
+
+  // Draw hodograph overlay after Plotly renders
+  setTimeout(() => {
+    drawHodograph(data);
+  });
+}
+
+function drawHodograph(data) {
+  const existing = document.getElementById('hodograph-overlay');
+  if (existing) existing.remove();
+
+  const size   = 120;
+  const pad    = 10;
+  const cx     = size / 2;
+  const cy     = size / 2;
+  const radius = (size / 2) - pad;
+
+  // Convert pressure to approximate altitude km
+  function presToKm(p) {
+    return 44.3308 * (1 - Math.pow(p / 1013.25, 0.190263));
+  }
+
+  // Filter valid wind levels up to 12km
+  const levels = data.filter(d =>
+    !isNaN(d.wspd) && !isNaN(d.wdir) &&
+    d.wspd >= 0 && d.pres > 0 &&
+    presToKm(d.pres) <= 12
+  );
+
+  if (!levels.length) return;
+
+  // U/V conversion — meteorological convention
+  function toUV(dirDeg, spdKt) {
+    const rad = dirDeg * Math.PI / 180;
+    return {
+      u: -spdKt * Math.sin(rad),
+      v: -spdKt * Math.cos(rad)
+    };
+  }
+
+  // Pre-calculate all UV points
+  const uvPoints = levels.map(d => toUV(d.wdir, d.wspd * 0.868976));
+
+  // Bounding box including origin (0,0)
+  const allU = [0, ...uvPoints.map(p => p.u)];
+  const allV = [0, ...uvPoints.map(p => p.v)];
+  const minU = Math.min(...allU);
+  const maxU = Math.max(...allU);
+  const minV = Math.min(...allV);
+  const maxV = Math.max(...allV);
+
+  // Center of data bounding box
+  const dataCenterU = (minU + maxU) / 2;
+  const dataCenterV = (minV + maxV) / 2;
+
+  // Scale to fit data in box with padding
+  const dataSpan = Math.max(maxU - minU, maxV - minV);
+  const scale    = (radius * 1.6) / (dataSpan || 1);
+
+  // Ring spacing — pick a round number close to 1/4 of max data speed
+  const allKt   = levels.map(d => d.wspd * 0.868976);
+  const maxSpd  = Math.max(Math.ceil(Math.max(...allKt) / 20) * 20, 40);
+  const ringSpd = maxSpd / 4;
+
+  function layerColor(km) {
+    if (km <= 3)  return '#ff4444';
+    if (km <= 6)  return '#90ee90';
+    if (km <= 9)  return '#228B22';
+    if (km <= 12) return '#a855f7';
+    return 'rgba(255,255,255,0.2)';
+  }
+
+  // SVG coordinate helpers — offset by data center
+  function toSvgX(u) { return cx + (u - dataCenterU) * scale; }
+  function toSvgY(v) { return cy - (v - dataCenterV) * scale; }
+
+  const ns  = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('id', 'hodograph-overlay');
+  svg.setAttribute('width',  size);
+  svg.setAttribute('height', size);
+  svg.style.cssText = `
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(17,23,32,0.88);
+    border: 1px solid rgba(100,180,255,0.2);
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 20;
+  `;
+
+  // Grid rings centered on origin (0,0), offset by dataCenterU/V
+  const ringCount = 4;
+  for (let i = 1; i <= ringCount; i++) {
+    const spd = ringSpd * i;
+    const r   = spd * scale;
+
+    const circle = document.createElementNS(ns, 'circle');
+    circle.setAttribute('cx',           toSvgX(0).toFixed(1));
+    circle.setAttribute('cy',           toSvgY(0).toFixed(1));
+    circle.setAttribute('r',            r.toFixed(1));
+    circle.setAttribute('fill',         'none');
+    circle.setAttribute('stroke',       'rgba(255,255,255,0.12)');
+    circle.setAttribute('stroke-width', '0.5');
+    svg.appendChild(circle);
+
+    // Label along horizontal axis to the right of origin
+    const lbl = document.createElementNS(ns, 'text');
+    lbl.setAttribute('x',           (toSvgX(0) + r + 2).toFixed(1));
+    lbl.setAttribute('y',           (toSvgY(0) + 4).toFixed(1));
+    lbl.setAttribute('fill',        'rgba(255,255,255,0.4)');
+    lbl.setAttribute('font-size',   '7');
+    lbl.setAttribute('font-family', 'IBM Plex Mono, monospace');
+    //lbl.textContent = Math.round(spd) + 'kt';
+    lbl.textContent = Math.round(spd);
+    svg.appendChild(lbl);
+  }
+
+  // Crosshair through origin
+  const ox = toSvgX(0);
+  const oy = toSvgY(0);
+  [
+    `M${ox.toFixed(1)},${pad} L${ox.toFixed(1)},${size - pad}`,
+    `M${pad},${oy.toFixed(1)} L${size - pad},${oy.toFixed(1)}`
+  ].forEach(d => {
+    const path = document.createElementNS(ns, 'path');
+    path.setAttribute('d',            d);
+    path.setAttribute('stroke',       'rgba(255,255,255,0.5)');
+    path.setAttribute('stroke-width', '0.75');
+    svg.appendChild(path);
+  });
+
+  // Draw segments colored by layer
+  for (let i = 1; i < levels.length; i++) {
+    const uv0 = uvPoints[i - 1];
+    const uv1 = uvPoints[i];
+    const km  = presToKm(levels[i].pres);
+
+    const seg = document.createElementNS(ns, 'line');
+    seg.setAttribute('x1',             toSvgX(uv0.u).toFixed(1));
+    seg.setAttribute('y1',             toSvgY(uv0.v).toFixed(1));
+    seg.setAttribute('x2',             toSvgX(uv1.u).toFixed(1));
+    seg.setAttribute('y2',             toSvgY(uv1.v).toFixed(1));
+    seg.setAttribute('stroke',         layerColor(km));
+    seg.setAttribute('stroke-width',   '2');
+    seg.setAttribute('stroke-linecap', 'round');
+    svg.appendChild(seg);
+  }
+
+  // Surface dot
+  if (levels.length > 0) {
+    const dot = document.createElementNS(ns, 'circle');
+    dot.setAttribute('cx',   toSvgX(uvPoints[0].u).toFixed(1));
+    dot.setAttribute('cy',   toSvgY(uvPoints[0].v).toFixed(1));
+    dot.setAttribute('r',    '3');
+    dot.setAttribute('fill', '#ff4444');
+    svg.appendChild(dot);
+  }
+
+  // Origin dot (0,0 wind — calm)
+  const origin = document.createElementNS(ns, 'circle');
+  origin.setAttribute('cx',   toSvgX(0).toFixed(1));
+  origin.setAttribute('cy',   toSvgY(0).toFixed(1));
+  origin.setAttribute('r',    '2');
+  origin.setAttribute('fill', 'rgba(255,255,255,0.4)');
+  svg.appendChild(origin);
+
+  document.getElementById('skewt').appendChild(svg);
+}
+
+// ---- UPPER AIR SOUNDING — DVN with ILX fallback ----
+// Rules:
+//   - Always try DVN first outside the 12z window (00–11z and 18z+).
+//   - 12–17z: the 12z sounding should be up but DVN has historically missed
+//     some 12z launches, so prefer ILX during that window as a cross-check.
+//   - Within each branch: try primary station first, fall back to secondary
+//     if the fetch fails or returns empty/error data.
+
+async function fetchSPCSoundingFor(station, overrideHour) {
+  const now  = new Date();
+  const yy   = String(now.getUTCFullYear()).slice(2);
+  const mm   = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const dd   = String(now.getUTCDate()).padStart(2, '0');
+  const utcH = now.getUTCHours();
+
+  // Pick the most recent synoptic time that's had time to arrive
+  // 00z available ~03z+, 12z available ~15z+, 18z available ~19z+
+  let hour;
+  if (overrideHour !== undefined) hour = overrideHour;
+  else if (utcH >= 19) hour = '18';
+  else if (utcH >= 12) hour = '12';
+  else hour = '00';
+  //console.log(`Fetching ${hour}z sounding for ${station} (current UTC hour: ${utcH})`);
+
+  const url = `https://www.spc.noaa.gov/exper/soundings/${yy}${mm}${dd}${hour}_OBS/${station}.txt`;
+  //console.log(`URL:`, url);
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status} for ${station}`);
+  const text = await res.text();
+  if (!text || text.includes('ERROR') || text.length < 100)
+    throw new Error(`Bad data for ${station}`);
+  return { text, station, hour };
+}
+
+async function tryStations(primary, secondary, overrideHour) {
+  // Returns { text, station, hour } from whichever station succeeds first.
+  try {
+    return await fetchSPCSoundingFor(primary, overrideHour);
+  } catch (e) {
+    console.warn(`Sounding: ${primary} failed (${e.message}), trying ${secondary}`);
+    return await fetchSPCSoundingFor(secondary, overrideHour);   // throws if this also fails
+  }
+}
+
+
+async function loadSounding() {
+  const label   = document.getElementById('sounding-station');
+  const utcH= new Date().getUTCHours();
+  const prefer12zFallback = (utcH >= 12 && utcH < 18); // prefer ILX during 12–17z window due to DVN's historical 12z issues
+
+  try {
+    label.textContent = 'Fetching sounding…';
+    label.style.color = 'var(--muted)';
+
+    let result;
+    if (prefer12zFallback) {
+      result = await tryStations('ILX', 'DVN');
+      } else {
+      try {
+        result = await tryStations('DVN', 'ILX');
+        } catch (e) {
+        console.warn('18z DVN+ILX both failed, falling back to 12z ILX');
+        result = await tryStations('ILX', 'DVN', '12');
+      }
+    }
+
+    // Safe to use result.hour here — if tryStations threw, we're in catch
+    const now    = new Date();
+    //const runTag = `${String(now.getUTCMonth()+1).padStart(2,'0')}/${String(now.getUTCDate()).padStart(2,'0')} — ${result.hour}z`;
+    const runTag = `${result.hour}z`;
+
+    if (prefer12zFallback) {
+      const wasPreferred = result.station === 'ILX';
+      label.textContent = wasPreferred
+        ? `ILX - ${runTag}`
+        : `DVN - ${runTag}`;
+      label.style.color = wasPreferred ? '#ffb060' : 'var(--accent)';
+    } else {
+      const wasPreferred = result.station === 'DVN';
+      label.textContent = wasPreferred
+        ? `DVN - ${runTag}`
+        : `ILX - ${runTag}`;
+      label.style.color = wasPreferred ? 'var(--accent)' : '#ffb060';
+    }
+
+    const data = parseSPC(result.text);
+    if (!data || data.length === 0)
+      throw new Error('No valid levels parsed from ' + result.station);
+
+    //const data = parseSPC(result.text);
+    currentSoundingData = data;
+
+    // Set the best default parcel mode on initial load
+    function isValidParcel(result) {
+      if (!result) return false;
+      return !result.parcelPath.some(pt => {
+        if (pt.pres < 500) return false;
+        const env = data.reduce((closest, d) =>
+          Math.abs(d.pres - pt.pres) < Math.abs(closest.pres - pt.pres) ? d : closest
+        );
+        return !isNaN(env.dew) && pt.temp < env.dew;
+      });
+    }
+
+    const modeOrder = ['SB', 'WX', 'ML', 'MU'];
+    const computeFns = {
+      SB: () => { parcelMode = 'SB'; return computeParcelPath(data); },
+      WX: () => { parcelMode = 'WX'; return computeParcelPath(data); },
+      ML: () => { parcelMode = 'ML'; return computeMLParcelPath(data); },
+      MU: () => { parcelMode = 'MU'; return computeMUParcelPath(data); },
+    };
+    for (const mode of modeOrder) {
+      const result = computeFns[mode]();
+      if (isValidParcel(result)) break;
+    }
+    updateParcelButtons();
+
+    plotSkewT(data);
+
+  } catch (e) {
+    label.textContent = 'Sounding unavailable';
+    label.style.color = '#ff6060';
+    console.error('Sounding error:', e);
+  }
+  // Wire up toolbar buttons
+  /*document.querySelectorAll('.snd-mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchSPCLayer(btn));
+  });*/
+}
+
+function getParcelPath(data) {
+  if (parcelMode === 'ML') return computeMLParcelPath(data);
+  if (parcelMode === 'MU') return computeMUParcelPath(data);
+
+  return computeParcelPath(data); // handles SB + SB_WX
+}
+
+// ---- SATELLITE / RADAR TOGGLE ----
+//const SAT_URL = 'https://geosphere.ssec.wisc.edu/#playing:true;coordinate:-1362525,4001572;zoom:5.9;coverage:radc;num_frames:8;frame_rate:10;';
+//const RADAR_URL = 'https://radar.weather.gov/?settings=v1_eyJhZ2VuZGEiOnsiaWQiOiJ3ZWF0aGVyIiwiY2VudGVyIjpbLTkyLjk4LDQxLjU3M10sImxvY2F0aW9uIjpudWxsLCJ6b29tIjo3LCJsYXllciI6ImJyZWZfcWNkIn0sImFuaW1hdGluZyI6dHJ1ZSwiYmFzZSI6InN0YW5kYXJkIiwiYXJ0Y2MiOmZhbHNlLCJjb3VudHkiOmZhbHNlLCJjd2EiOmZhbHNlLCJyZmMiOmZhbHNlLCJzdGF0ZSI6ZmFsc2UsIm1lbnUiOnRydWUsInNob3J0RnVzZWRPbmx5IjpmYWxzZSwib3BhY2l0eSI6eyJhbGVydHMiOjAuOCwibG9jYWwiOjAuNiwibG9jYWxTdGF0aW9ucyI6MC44LCJuYXRpb25hbCI6MC42fX0%3D';
+// url:   'https://www.spc.noaa.gov/products/outlook/day1otlk.html',
+// url: 'https://www.spc.noaa.gov/products/activity_loop.gif',
+
+
+// ---- SATELLITE TOGGLE ----
+const SAT_SOURCES = {
+  satellite: {
+    url:   'https://geosphere.ssec.wisc.edu/#playing:true;coordinate:-1362525,4001572;zoom:5.9;coverage:radc;num_frames:8;frame_rate:10;',
+    label: 'SATELLITE — N IOWA TRUE COLOR',
+  },
+  radar: {
+    url:   'https://radar.weather.gov/?settings=v1_eyJhZ2VuZGEiOnsiaWQiOiJuYXRpb25hbCIsImNlbnRlciI6Wy05My42Nyw0Mi4wOF0sImxvY2F0aW9uIjpudWxsLCJ6b29tIjo3LjgwMjEzMDQ4MDMwMzU5MjUsImxheWVyIjoiYnJlZl9xY2QifSwiYW5pbWF0aW5nIjp0cnVlLCJiYXNlIjoiZGFya2NhbnZhcyIsImFydGNjIjpmYWxzZSwiY291bnR5IjpmYWxzZSwiY3dhIjpmYWxzZSwicmZjIjpmYWxzZSwic3RhdGUiOnRydWUsIm1lbnUiOnRydWUsInNob3J0RnVzZWRPbmx5IjpmYWxzZSwib3BhY2l0eSI6eyJhbGVydHMiOjAuNjEsImxvY2FsIjowLjYsImxvY2FsU3RhdGlvbnMiOjAuOCwibmF0aW9uYWwiOjF9fQ%3D%3D',
+    label: 'NWS — COMPOSITE REFLECTIVITY',
+  },
+  spc: {
+    url: null,
+    label: 'SPC — DAY 1 CONVECTIVE OUTLOOK',
+  },
+  meso: {
+    url: 'https://www.spc.noaa.gov/exper/mesoanalysis/new/viewsector.php?sector=20#',
+    label: 'SPC — Mesoscale Analysis',
+  }
+};
+
+let satMode = 'satellite';
+const SOURCE_ORDER = ['satellite', 'radar', 'spc', 'meso'];
+
+function cycleSource(target) {
+
+  const goingSPC = (target === 'spc') || (target === 'next' && SOURCE_ORDER[(SOURCE_ORDER.indexOf(satMode)+1)%SOURCE_ORDER.length] === 'spc');
+  const leavingSPC = satMode === 'spc';
+
+  // If a specific target is passed (e.g. 'spc'), go there directly.
+  // If 'next', cycle to the next source in order.
+  if (target === 'next') {
+    const idx = SOURCE_ORDER.indexOf(satMode);
+    satMode = SOURCE_ORDER[(idx + 1) % SOURCE_ORDER.length];
+  } else {
+    satMode = target;
+  }
+
+  const src = SAT_SOURCES[satMode];
+  document.getElementById('sat-iframe').src             = src.url;
+  document.getElementById('sat-label-text').textContent = src.label;
+  document.getElementById('satellite').classList.toggle('radar-mode', satMode === 'radar');
+
+  // The two buttons always show the two sources that are NOT active
+  const others = SOURCE_ORDER.filter(s => s !== satMode);
+  document.getElementById('sat-toggle').textContent = others[0].toUpperCase();
+  document.getElementById('spc-toggle').textContent = others[1].toUpperCase();
+  document.getElementById('meso-toggle').textContent = others[2].toUpperCase();
+
+  // Update onclick targets so each button goes to the right place
+  document.getElementById('sat-toggle').onclick = () => cycleSource(others[0]);
+  document.getElementById('spc-toggle').onclick = () => cycleSource(others[1]);
+  document.getElementById('meso-toggle').onclick = () => cycleSource(others[2]);
+  
+
+  if (goingSPC) {
+        document.getElementById('sat-iframe').style.display = 'none';
+        document.getElementById('spc-map-container').style.display = 'flex';
+        document.querySelector('#satellite .sat-label').style.left = '8px';
+        document.querySelector('#satellite .sat-label').style.top = '4px';
+        initSPCMap();
+      } else if (leavingSPC) {
+        document.getElementById('spc-map-container').style.display = 'none';
+        document.getElementById('sat-iframe').style.display = 'block';
+        document.querySelector('#satellite .sat-label').style.left = '365px';
+      }
+  }
+
+//<script id="spc-panel-script">
+
+// ---- SPC MAP — state ----
+let spcMap          = null;   // Leaflet map instance
+let spcBaseLayer    = null;   // states + borders GeoJSON layer
+let spcOutlookLayer = null;   // primary outlook polygons
+let spcSigLayer     = null;   // sig (hatched) polygons
+let spcMapReady     = false;  // true after first init
+
+// ---- SPC URLS already set in toolbar data attributes ----
+// Primary and sig URLs live on each .spc-btn via data-primary / data-sig
+
+// ---- CONUS cities (lat, lon, name, anchor) ----
+// Hardcoded — no fetch needed, ~2kb
+const SPC_CITIES = [
+  // Pacific / Mountain West
+  [47.61, -122.33, 'Seattle'],
+  [45.52, -122.68, 'Portland'],
+  [37.77, -122.42, 'San Francisco'],
+  [34.05, -118.24, 'Los Angeles'],
+  [32.72, -117.16, 'San Diego'],
+  [36.17, -115.14, 'Las Vegas'],
+  [33.45, -112.07, 'Phoenix'],
+  [32.22, -110.97, 'Tucson'],
+  [35.08, -106.65, 'Albuquerque'],
+  [43.62, -116.20, 'Boise'],
+  [46.60, -112.03, 'Helena'],
+  [47.50, -111.30, 'Great Falls'],
+  [43.53, -110.76, 'Jackson'],
+  [40.76, -111.89, 'Salt Lake City'],
+  [39.74, -104.98, 'Denver'],
+  [38.85, -104.82, 'Colorado Springs'],
+  // Great Plains
+  [46.88, -96.79, 'Fargo'],
+  [44.00, -92.47, 'Rochester'],
+  [44.88, -93.22, 'Minneapolis'],
+  [43.55, -96.73, 'Sioux Falls'],
+  [42.50, -96.40, 'Sioux City'],
+  [41.26, -95.94, 'Omaha'],
+  [40.82, -96.68, 'Lincoln'],
+  [39.10, -94.58, 'Kansas City'],
+  [37.69, -97.34, 'Wichita'],
+  [35.47, -97.52, 'OKC'],
+  [36.15, -95.99, 'Tulsa'],
+  [35.22, -101.83, 'Amarillo'],
+  [31.85, -102.37, 'Midland'],
+  [32.79, -96.80, 'Dallas'],
+  [29.76, -95.37, 'Houston'],
+  [30.27, -97.74, 'Austin'],
+  [29.42, -98.49, 'San Antonio'],
+  [31.76, -106.49, 'El Paso'],
+  // Midwest / Great Lakes
+  [41.98, -91.67, 'Cedar Rapids'],
+  [41.59, -93.62, 'Des Moines'],
+  [43.07, -89.40, 'Madison'],
+  [43.05, -76.15, 'Syracuse'],
+  [44.94, -93.09, 'St Paul'],
+  [41.85, -87.65, 'Chicago'],
+  [39.77, -86.16, 'Indianapolis'],
+  [42.33, -83.05, 'Detroit'],
+  [43.00, -83.04, 'Flint'],
+  [41.66, -83.56, 'Toledo'],
+  [41.50, -81.69, 'Cleveland'],
+  [40.44, -79.99, 'Pittsburgh'],
+  [38.25, -85.76, 'Louisville'],
+  [39.10, -84.51, 'Cincinnati'],
+  [39.96, -82.99, 'Columbus'],
+  [38.89, -77.04, 'Washington DC'],
+  // South / Southeast
+  [36.17, -86.78, 'Nashville'],
+  [35.15, -90.05, 'Memphis'],
+  [33.75, -84.39, 'Atlanta'],
+  [35.23, -80.84, 'Charlotte'],
+  [32.78, -79.94, 'Charleston SC'],
+  [30.33, -81.66, 'Jacksonville'],
+  [27.95, -82.46, 'Tampa'],
+  [25.77, -80.19, 'Miami'],
+  [30.33, -89.33, 'Gulfport'],
+  [29.95, -90.07, 'New Orleans'],
+  [30.69, -88.04, 'Mobile'],
+  [32.36, -86.30, 'Montgomery'],
+  [33.52, -86.81, 'Birmingham'],
+  [35.47, -89.96, 'Jackson TN'],
+  [32.30, -90.18, 'Jackson MS'],
+  [34.74, -92.29, 'Little Rock'],
+  [38.63, -90.20, 'St Louis'],
+  [36.89, -76.26, 'Norfolk'],
+  [37.54, -77.43, 'Richmond'],
+  [39.29, -76.61, 'Baltimore'],
+  // Northeast
+  [40.71, -74.01, 'New York'],
+  [42.36, -71.06, 'Boston'],
+  [41.76, -72.68, 'Hartford'],
+  [39.95, -75.17, 'Philadelphia'],
+  [42.65, -73.75, 'Albany'],
+  [43.16, -77.61, 'Rochester NY'],
+  [42.89, -78.87, 'Buffalo'],
+  [44.48, -73.21, 'Burlington'],
+  [43.66, -70.26, 'Portland ME'],
+];
+
+
+// ---- SVG hatch pattern def (injected into Leaflet's SVG layer) ----
+/*function ensureHatchPattern() {
+  if (document.getElementById('spc-hatch-svg')) return;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('id', 'spc-hatch-svg');
+  svg.setAttribute('width', '0');
+  svg.setAttribute('height', '0');
+  svg.style.cssText = 'position:absolute;pointer-events:none;';
+  svg.innerHTML = `
+    <defs>
+      <pattern id="spc-hatch" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(45)">
+        <line x1="0" y1="0" x2="0" y2="7" stroke="black" stroke-width="3.5"/>
+      </pattern>
+    </defs>
+  `;
+  document.body.appendChild(svg);
+}*/
+
+function ensureHatchPattern() {
+  if (document.getElementById('spc-hatch-svg')) return;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('id', 'spc-hatch-svg');
+  svg.setAttribute('width', '0');
+  svg.setAttribute('height', '0');
+  svg.style.cssText = 'position:absolute;pointer-events:none;';
+  svg.innerHTML = `
+    <defs>
+      <pattern id="spc-hatch-1" patternUnits="userSpaceOnUse" width="20" height="20" patternTransform="rotate(45)">
+        <line x1="0" y1="0" x2="0" y2="14" stroke="#000" stroke-width="3.5" stroke-dasharray="10,10" stroke-dashoffset="1"/>
+      </pattern>
+      <pattern id="spc-hatch-2" patternUnits="userSpaceOnUse" width="9" height="9" patternTransform="rotate(45)">
+        <line x1="0" y1="0" x2="0" y2="9" stroke="#000" stroke-width="2"/>
+      </pattern>
+      <pattern id="spc-hatch-3" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)">
+        <line x1="0" y1="0" x2="0" y2="6" stroke="#000" stroke-width="2.5"/>
+        <line x1="0" y1="0" x2="6" y2="0" stroke="#000" stroke-width="2.5"/>
+      </pattern>
+    </defs>
+  `;
+  document.body.appendChild(svg);
+}
+
+
+// ---- Build / rebuild the legend from rendered features ----
+function buildLegend(features, isSig) {
+  const rows  = document.getElementById('spc-legend-rows');
+  const empty = document.getElementById('spc-empty-msg');
+
+  if (!features || features.length === 0) {
+    rows.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+
+  // Check if the first feature's LABEL indicates a sub-5% / no-risk outlook
+  const firstLabel = (features[0].properties.LABEL || features[0].properties.label || '').toLowerCase();
+  const isNoRisk = firstLabel.includes('less than 5') ||
+                   firstLabel.includes('less than 2') ||
+                   firstLabel.includes('ltg') ||
+                   firstLabel === '';
+
+  if (isNoRisk) {
+    rows.innerHTML = '';
+    empty.style.display = 'block';
+    empty.textContent = firstLabel.includes('less than 2')
+      ? 'LESS THAN 2% — ALL AREAS'
+      : 'LESS THAN 5% — ALL AREAS';
+    return;
+  }
+
+  empty.style.display = 'none';
+
+  const seen = new Map();
+  features.forEach(f => {
+    const p   = f.properties;
+    const key = p.LABEL || p.label || '';
+    if (!seen.has(key)) {
+      seen.set(key, {
+        fill:   p.fill   || p.Fill || '#888',
+        label2: p.LABEL2 || p.label2 || key
+      });
+    }
+  });
+
+  let html = '';
+  seen.forEach(({ fill, label2 }) => {
+    html += `<div class="leg-row">
+      <div class="leg-swatch" style="background:${fill};"></div>
+      <span>${label2}</span>
+    </div>`;
+  });
+
+  if (isSig) {
+    html += `<div class="leg-row">
+      <div class="leg-swatch" style="background:rgba(255,255,255,0.55);border:1.5px dashed #000;"></div>
+      <span>Significant</span>
+    </div>`;
+  }
+
+  rows.innerHTML = html;
+}
+
+// ---- Update the valid-time strip ----
+function updateValidStrip(features) {
+  const strip = document.getElementById('spc-valid-strip');
+  if (!features || !features.length) { strip.textContent = ''; return; }
+  const p = features[0].properties;
+  const issue  = p.ISSUE_ISO  || p.issue_iso  || '';
+  const valid  = p.VALID_ISO  || p.valid_iso  || '';
+  const expire = p.EXPIRE_ISO || p.expire_iso || '';
+  const fcstr  = p.FORECASTER || p.forecaster || '';
+  const fmt = iso => iso ? new Date(iso).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZoneName:'short'}) : '';
+  strip.innerHTML = `ISSUED: ${fmt(issue)}<br>VALID: ${fmt(valid)} — ${fmt(expire)}<br>FORECASTER: ${fcstr}`;
+}
+
+// ---- Fetch + render one outlook layer ----
+async function loadOutlookLayer(url) {
+  if (!url) return null;
+  try {
+    const res  = await fetch(url);
+    const data = await res.json();
+    const features = data.features || [];
+
+    const layer = L.geoJSON(data, {
+      pane: 'outlookPane',
+      style: feature => {
+        const p         = feature.properties;
+        const isSigFill = (p.fill === '#888888' || p.fill === '#888');
+
+        if (isSigFill) {
+          return {
+            fillColor:   '#000',  // placeholder — overridden by getElement() below
+            fillOpacity: 1,
+            color:       p.stroke || '#000000',
+            weight:      1,
+            opacity:     0.8,
+          };
+        }
+        return {
+          fillColor:   p.fill || '#888',
+          fillOpacity: 0.9,
+          color:       p.stroke || '#fff',
+          weight:      1,
+          opacity:     0.9,
+        };
+      },
+      onEachFeature: (feature, lyr) => {
+        const p         = feature.properties;
+        const label     = p.LABEL2 || p.label2 || p.LABEL || '';
+        if (label) lyr.bindTooltip(label, { sticky: true, className: 'spc-tooltip' });
+
+        const isSigFill = (p.fill === '#888888' || p.fill === '#888');
+        if (isSigFill) {
+          const cigLevel  = p.LABEL || 'CIG1';
+          const patternId = cigLevel === 'CIG3' ? 'spc-hatch-3'
+                          : cigLevel === 'CIG2' ? 'spc-hatch-2'
+                          : 'spc-hatch-1';
+          lyr.on('add', () => {
+            const el = lyr.getElement();
+            if (el) el.setAttribute('fill', `url(#${patternId})`);
+          });
+        }
+      },
+      interactive: false,
+    });
+
+    return { layer, features };
+  } catch(e) {
+    console.error('SPC GeoJSON fetch error:', url, e);
+    return null;
+  }
+}
+
+// ---- Load state/county base from us-atlas TopoJSON ----
+async function loadBaseLayer() {
+  const url = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json';
+  const res  = await fetch(url);
+  const topo = await res.json();
+  const geojson = topojson.feature(topo, topo.objects.states);
+  return L.geoJSON(geojson, {
+    pane:'bordersPane',
+    style: {
+      fillColor:   'transparent',
+      color:       'rgba(180,210,255,0.5)',
+      weight:      1.8,
+      opacity:     1,
+    },
+    interactive: false,
+  });
+}
+
+// ---- City label markers ----
+function addCityLabels(map) {
+  SPC_CITIES.forEach(([lat, lon, name]) => {
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="
+        font-family:'IBM Plex Sans',sans-serif;
+        font-size:9px;
+        color:rgba(220,235,255,0.7);
+        white-space:nowrap;
+        text-shadow:0 0 3px #000,0 0 3px #000;
+        pointer-events:none;
+        transform:translate(-50%,-50%);
+      ">${name}</div>`,
+      iconSize:   [0, 0],
+      iconAnchor: [0, 0],
+    });
+    L.marker([lat, lon], { icon, interactive: false, keyboard: false }).addTo(map);
+
+    // Dot
+    L.circleMarker([lat, lon], {
+      radius:      2,
+      fillColor:   'rgba(180,210,255,0.5)',
+      fillOpacity: 1,
+      color:       'transparent',
+      interactive: false,
+    }).addTo(map);
+  });
+}
+
+// ---- Switch outlook when a toolbar button is clicked ----
+async function switchSPCLayer(btn) {
+  // Update active button state
+  document.querySelectorAll('.spc-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  const primaryUrl = btn.dataset.primary;
+  const sigUrl     = btn.dataset.sig;
+
+  // Remove old outlook layers
+  if (spcOutlookLayer) { spcMap.removeLayer(spcOutlookLayer); spcOutlookLayer = null; }
+  if (spcSigLayer)     { spcMap.removeLayer(spcSigLayer);     spcSigLayer     = null; }
+
+  // Reset UI
+  document.getElementById('spc-empty-msg').style.display = 'none';
+  document.getElementById('spc-valid-strip').textContent = '';
+  document.getElementById('spc-legend-rows').innerHTML   = '';
+
+  // Fetch primary
+  const primary = await loadOutlookLayer(primaryUrl);
+  if (primary) {
+    spcOutlookLayer = primary.layer;
+    spcOutlookLayer.addTo(spcMap);
+    buildLegend(primary.features, !!sigUrl);
+    updateValidStrip(primary.features);
+  } else {
+    buildLegend([], false);
+  }
+}
+
+// ---- One-time map init (called when SPC panel first becomes visible) ----
+async function initSPCMap() {
+  if (spcMapReady) {
+    // Already built — just invalidate size in case panel was hidden
+    spcMap.invalidateSize();
+    return;
+  }
+  spcMapReady = true;
+  ensureHatchPattern();
+
+  // Create Leaflet map — no tile layer, dark background via CSS
+  spcMap = L.map('spc-map', {
+    center:          [41.9, -91.6],
+    zoom:            6,
+    zoomControl:     true,
+    attributionControl: false,
+    preferCanvas:    false, // SVG renderer needed for hatch pattern
+  });
+
+  spcMap.createPane('outlookPane');
+  spcMap.getPane('outlookPane').style.zIndex = 300;
+  spcMap.createPane('bordersPane');
+  spcMap.getPane('bordersPane').style.zIndex = 400;
+  spcMap.getPane('bordersPane').style.pointerEvents = 'none';
+
+  // Base layer (state borders)
+  const base = await loadBaseLayer();
+  base.addTo(spcMap);
+  spcBaseLayer = base;
+
+  // City labels
+  addCityLabels(spcMap);
+
+  // Load default layer (D1 Outlook — first button)
+  const defaultBtn = document.querySelector('.spc-btn[data-primary]');
+  if (defaultBtn) await switchSPCLayer(defaultBtn);
+
+  // Wire up toolbar buttons
+  document.querySelectorAll('.spc-btn').forEach(btn => {
+    btn.addEventListener('click', () => switchSPCLayer(btn));
+  });
+}
+
+function loadObsSounding() {
+  document.querySelector('#sounding .section-title').textContent = 'Upper Air Sounding';
+  document.querySelector('#sounding .section-title').onclick = () => loadModelSounding();
+  loadSounding();
+}
+
+// ---- RAP MODEL SOUNDING (BUFKIT) — loads on click of "Upper Air Sounding" title ----
+async function loadModelSounding() {
+  const label = document.getElementById('sounding-station');
+  label.textContent = 'Fetching model data…';
+  label.style.color = 'var(--muted)';
+
+  // Try model hours from (current UTC - 1) down to (current UTC - 6)
+  // RAP is hourly; allow ~1hr for file availability
+  const utcH = new Date().getUTCHours();
+  const hoursToTry = Array.from({ length: 6 }, (_, i) => (utcH - 1 - i + 24) % 24);
+
+  let text = null;
+  let usedHour = null;
+  let BestTime = null;
+  const model = "HRRR"; // "HRRR" or "RAP" if you want to try that instead (but it's often unavailable for KCID)
+
+  for (const h of hoursToTry) {
+    const hStr = String(h).padStart(2, '0');
+    //console.log(`Trying ${model} hour ${hStr}z for sounding…`);
+    
+    //const url  = `https://corsproxy.io/?url=https://www.meteo.psu.edu/bufkit/data/${model}/20/${model}_kcid.buf`;
+    //const url  = `https://corsproxy.io/?url=https://www.meteo.psu.edu/bufkit/data/${model.toUpperCase()}/${hStr}/${model.toLowerCase()}_kcid.buf`;
+    //const url  = `https://corsproxy.io/?url=https://www.meteo.psu.edu/bufkit/data/RAP/${hStr}/rap_kcid.buf`;
+    const url = `https://corsproxy.io/?url=https://metfs1.agron.iastate.edu/data/bufkit/${model.toLowerCase()}/${model.toLowerCase()}_kcid.buf`; // alternative RAP source that seems more reliable for KCID
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const t = await res.text();
+      if (!t || t.length < 200) continue;
+      text     = t;
+      usedHour = hStr;
+      break;
+    } catch { continue; }
+  }
+
+  if (!text) {
+    label.textContent = `${model} unavailable`;
+    label.style.color = '#ff6060';
+    return;
+  }
+
+  // Parse BUFKIT — extract the first time step's SNPARM sounding block
+  const data = parseBUFKIT(text);
+
+  if (!data || data.length < 5) {
+    label.textContent = `${model} parse failed`;
+    label.style.color = '#ff6060';
+    return;
+  }
+
+  currentSoundingData = data;
+  //label.textContent   = `RAP KCID — ${usedHour}z`;
+  label.textContent   = `CID - ${usedHour}z`;
+  document.querySelector('#sounding .section-title').textContent = `${model} Model Sounding`;
+  document.querySelector('#sounding .section-title').onclick = () => loadObsSounding();
+  label.style.color   = '#c084fc'; // purple to distinguish from obs
+
+  // Re-run parcel selection and plot
+  const modeOrder  = ['SB', 'WX', 'ML', 'MU'];
+  const computeFns = {
+    SB: () => { parcelMode = 'SB'; return computeParcelPath(data); },
+    WX: () => { parcelMode = 'WX'; return computeParcelPath(data); },
+    ML: () => { parcelMode = 'ML'; return computeMLParcelPath(data); },
+    MU: () => { parcelMode = 'MU'; return computeMUParcelPath(data); },
+  };
+  function isValidParcel(r) {
+    if (!r) return false;
+    return !r.parcelPath.some(pt => {
+      if (pt.pres < 500) return false;
+      const env = data.reduce((closest, d) =>
+        Math.abs(d.pres - pt.pres) < Math.abs(closest.pres - pt.pres) ? d : closest);
+      return !isNaN(env.dew) && pt.temp < env.dew;
+    });
+  }
+  for (const mode of modeOrder) {
+    const r = computeFns[mode]();
+    if (isValidParcel(r)) break;
+  }
+  updateParcelButtons();
+  plotSkewT(data);
+}
+
+// ---- BUFKIT parser — extracts pressure/temp/dew/wind from first time step ----
+function parseBUFKIT(text) {
+  // Split the full file into per-timestep blocks by finding all STID header lines
+  const lines = text.split('\n');
+  
+  // Find all block start indices and their UTC times
+  const blocks = [];
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/STID\s*=\s*\S+\s+STNM\s*=\s*\d+\s+TIME\s*=\s*(\d{6})\/(\d{4})/);
+    if (m) {
+      const dateStr = m[1]; // e.g. "260331"
+      const timeStr = m[2]; // e.g. "2100"
+      const yy = parseInt(dateStr.slice(0,2)) + 2000;
+      const mo = parseInt(dateStr.slice(2,4)) - 1;
+      const dd = parseInt(dateStr.slice(4,6));
+      const hh = parseInt(timeStr.slice(0,2));
+      const mn = parseInt(timeStr.slice(2,4));
+      const dt = new Date(Date.UTC(yy, mo, dd, hh, mn));
+      blocks.push({ lineIdx: i, dt });
+    }
+  }
+
+  if (!blocks.length) return [];
+
+  // Find the block whose time is closest to now without exceeding it
+  const nowUTC = new Date();
+  //console.log('Current UTC time:', nowUTC.toISOString().replace('T', ' ').slice(0,16), 'UTC');
+  let best = blocks[0];
+  for (const b of blocks) {
+    if (b.dt <= nowUTC && b.dt > best.dt) best = b;
+    // If all blocks are in the future, fall back to the earliest
+    if (best.dt > nowUTC) best = blocks[0];
+  }
+  //console.log('Selected BUFKIT block time:', best.dt.toISOString().replace('T', ' ').slice(0,16), 'UTC');
+  //console.log('Selected BUFKIT Block Time:', best.dt.toISOString().replace('T', ' ').slice(11,13), 'UTC');
+  // Determine line range: from best.lineIdx to next block's lineIdx (or end of file)
+  const startIdx = best.lineIdx;
+  const nextBlock = blocks.find(b => b.lineIdx > startIdx);
+  const endIdx = nextBlock ? nextBlock.lineIdx : lines.length;
+  
+
+  // Find the SNPARM line within this block to get column order
+  let snparmCols = null;
+  for (let i = startIdx; i < endIdx; i++) {
+    if (lines[i].startsWith('SNPARM')) {
+      snparmCols = lines[i].replace('SNPARM','').replace('=','').trim().split(';').map(s => s.trim());
+      break;
+    }
+  }
+  // Fall back to known RAP column order if SNPARM not found in block
+  if (!snparmCols) snparmCols = ['PRES','TMPC','TMWC','DWPC','THTE','DRCT','SKNT','OMEG','CFRL','HGHT'];
+
+  // BUFKIT data lines come in pairs (the format wraps every 8 columns onto 2 lines)
+  // Rejoin wrapped pairs before parsing
+  const data = [];
+  let i = startIdx;
+  while (i < endIdx) {
+    const line1 = lines[i].trim();
+    const line2 = (i + 1 < endIdx) ? lines[i + 1].trim() : '';
+
+    const tokens1 = line1.split(/\s+/).filter(Boolean);
+    const tokens2 = line2.split(/\s+/).filter(Boolean);
+
+    const all1Num = tokens1.length > 0 && tokens1.every(t => !isNaN(parseFloat(t)));
+    const all2Num = tokens2.length > 0 && tokens2.every(t => !isNaN(parseFloat(t)));
+
+    if (all1Num && all2Num && tokens1.length + tokens2.length >= snparmCols.length) {
+      const tokens = [...tokens1, ...tokens2];
+      const row = {};
+      tokens.forEach((v, idx) => { if (idx < snparmCols.length) row[snparmCols[idx]] = parseFloat(v); });
+
+      const pres = row['PRES'], temp = row['TMPC'], dew = row['DWPC'];
+      const wdir = row['DRCT'], wspd = row['SKNT'];
+
+      //if (!isNaN(pres) && !isNaN(temp) && pres > 100 && pres < 1100 && temp > -100 && temp < 100) {
+      //  data.push({ pres, temp, dew: isNaN(dew) ? temp - 30 : dew, wdir, wspd });
+      //}
+      if (!isNaN(pres) && !isNaN(temp) && pres > 100 && pres < 1100 && temp > -100 && temp < 100) {
+        const cleanDew  = (!isNaN(dew)  && dew  > -9990) ? dew  : null;
+        const cleanWdir = (!isNaN(wdir) && wdir > -9990) ? wdir : null;
+        const cleanWspd = (!isNaN(wspd) && wspd > -9990) ? wspd : null;
+        data.push({
+          pres,
+          temp,
+          dew:  cleanDew  !== null ? cleanDew  : temp - 30,
+          wdir: cleanWdir,
+          wspd: cleanWspd,
+        });
+      }
+      i += 2; // consume both lines
+    } else {
+      i += 1;
+    }
+  }
+  return data;
+}
+
+function setParcelMode(mode) {
+  parcelMode = mode;
+  //console.log('Parcel mode set to:', parcelMode);
+  updateParcelButtons();
+
+  // re-draw Skew-T using current data
+  if (currentSoundingData) {
+    plotSkewT(currentSoundingData);
+  }
+}
+
+function updateParcelButtons() {
+  //document.querySelectorAll('#parcel-controls button').forEach(btn => {
+  document.querySelectorAll('#parcel-controls button').forEach(btn => {
+    //btn.style.background = btn.textContent.includes(parcelMode.replace('_WX','')) ? '#4a90e2': '';
+    btn.style.background = btn.textContent.includes(parcelMode) ? '#4a90e2': '';
+    btn.style.color = btn.textContent.includes(parcelMode) ? '#fff' : '';
+  });
+}
+
+/*
+//Artemis II feed without playbuttons: 
+// ---- ARTEMIS II LIVE FEED TOGGLE ----
+let artemisActive = false;
+function toggleArtemis() {
+  const overlay = document.getElementById('artemis-overlay');
+  const iframe  = document.getElementById('artemis-iframe');
+  const btn     = document.getElementById('artemis-btn');
+
+  artemisActive = !artemisActive;
+
+  if (artemisActive) {
+    iframe.src = 'https://www.youtube.com/embed/6RwfNBtepa4?si=t6RhHIo2ipmoKbZ0&autoplay=1;controls=0';
+    overlay.style.display = 'block';
+    btn.style.boxShadow = '0 0 16px rgba(255,80,80,0.9)';
+  } else {
+    iframe.src = '';
+    overlay.style.display = 'none';
+    btn.style.boxShadow = '0 0 8px rgba(58,160,255,0.4)';
+  }
+}
+*/
+/*
+// ---- ARTEMIS II LIVE FEED TOGGLE ----
+// States: 0 = satellite (off), 1 = YouTube live, 2 = NASA AROW page
+let artemisState = 0;
+function toggleArtemis() {
+  const overlay = document.getElementById('artemis-overlay');
+  const iframe  = document.getElementById('artemis-iframe');
+  const btn     = document.getElementById('artemis-btn');
+
+  artemisState = (artemisState + 1) % 3;
+
+  if (artemisState === 1) {
+    // State 1 — YouTube live feed
+    //iframe.src = 'https://www.youtube.com/embed/6RwfNBtepa4?si=t6RhHIo2ipmoKbZ0&autoplay=1&mute=1&controls=0';
+    iframe.src = 'https://www.youtube.com/embed/6mtZ4mN-zhw?si=9KQ2V324QmrE3kBx&autoplay=1&mute=1&controls=0';
+    overlay.style.display = 'block';
+    btn.style.boxShadow = '0 0 16px rgba(255,80,80,0.9)';
+  } else if (artemisState === 2) {
+    // State 2 — NASA AROW page
+    //iframe.src = 'https://www.nasa.gov/missions/artemis-ii/arow/';
+    //iframe.src = 'https://www.youtube.com/embed/m3kR2KK8TEs?si=yYicGmbjk53J0gZu&autoplay=1&mute=1&controls=0';
+    iframe.src = 'http://orbitsimulator.com/gravitySimulatorCloud/simulations/1775152029979_Clean%20View%20from%20Artemis%20II.html';
+    overlay.style.display = 'block';
+    btn.style.boxShadow = '0 0 16px rgba(255,200,80,0.9)';
+  } else {
+    // State 0 — back to satellite
+    iframe.src = '';
+    overlay.style.display = 'none';
+    btn.style.boxShadow = '0 0 8px rgba(58,160,255,0.4)';
+  }
+}*/
+
+
+// ---- INIT ----
+//fetchAlerts();
+//fetchAmbient();
+//fetchForecast();
+//fetchCLI();
+//fetchSun();
+//fetchWxStories();
+//loadSounding();
+
+// ---- INIT ----
+fetchAmbient();
+fetchCLI();
+fetchWxStories();
+loadSounding();
+
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(
+    pos => initWithLocation(pos.coords.latitude, pos.coords.longitude),
+    err => {
+      console.warn('Geolocation denied, using default coordinates.', err);
+      initWithLocation(LAT, LON);
+    },
+    { timeout: 8000 }
+  );
+} else {
+  initWithLocation(LAT, LON);
+}
+
+
+//startAlertsCycle();
+
+setInterval(fetchAlerts,    5 * 60 * 1000);
+setInterval(fetchAmbient,   5  * 60 * 1000);
+setInterval(fetchForecast,  15 * 60 * 1000);
+setInterval(fetchWxStories, 30 * 60 * 1000);
+setInterval(fetchCLI,       60 * 60 * 1000);
+setInterval(loadSounding,   60 * 60 * 1000);
+setInterval(fetchSun,       60 * 60 * 1000);
+
+/*
+// Auto-reload page every hour to clear memory/cache
+setInterval(() => {location.reload(true);}, 1 * 60 * 60 * 1000);
+*/
+
+// Auto-reload every hour and force-clear cache
+setInterval(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('t', Date.now()); // Adds a unique timestamp like ?t=1711554600000
+    window.location.href = url.toString();
+}, 1.5 * 60 * 60 * 1000);
+
+</script>
+</body>
+</html>
