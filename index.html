@@ -198,33 +198,100 @@
   #forecast {
     grid-column: 3;
     grid-row: 2 / 3;
-    padding: 11px 13px;
+    padding: 5px 4px;
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 2px;
   }
   .section-title {
     font-family: 'Bebas Neue', sans-serif;
     font-size: 14px;
     letter-spacing: 2px;
     color: var(--muted);
-    margin-bottom: 3px;
+    margin-bottom: 0px;
     flex-shrink: 0;
   }
-  .forecast-row {
+  #forecast-list {
     display: flex;
+    flex-direction: row;
+    gap: 5px;
+    flex: 1;
+  }
+  .forecast-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: space-between;
-    padding: 6px 8px;
+    justify-content: flex-start;
+    height: 100%;
     background: var(--panel2);
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: 6px;
+    padding: 2px 4px;
+    min-width: 0;
+    overflow: hidden;
+    position: relative;
   }
-  .forecast-day { font-size: 11px; font-weight: 500; width: 32px; }
-  .forecast-icon { font-size: 16px; width: 24px; text-align: center; }
-  .forecast-desc { font-size: 10px; color: var(--muted); flex: 1; padding: 0 5px; }
-  .forecast-temps { font-family: 'IBM Plex Mono', monospace; font-size: 11px; }
-  .forecast-lo { color: var(--muted); }
+  .forecast-card-day {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: #fff;
+    text-align: center;
+    width: 100%;
+    background: rgba(255,255,255,0.08);
+    border-radius: 4px;
+    padding: 0px 0;
+  }
+  .forecast-card-icon {
+    width: 53px;
+    height: 45px;
+    margin-top: 0px;
+    flex-shrink: 0;
+    align-items: start;
+  }
+  .forecast-card-desc {
+    font-size: 8.5px;
+    margin-top: 4px;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.2;
+    height: 2.4em;
+    padding: 0 2px;
+    min-height: 20px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+  }
+  .forecast-bottom-group {
+    margin-top: auto; 
+    width: 100%;
+    text-align: center;
+    padding-bottom: 2px;
+  }
+  .forecast-card-precip {
+    font-size: 10px;
+    color: #7ec8e3;
+    line-height: 1.1;
+    text-align: center;
+    min-height: 2.2em;
+    margin-bottom: 1px;
+  }
+  .forecast-card-hi {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    text-align: center;
+    margin-bottom: -1px;
+  }
+  .forecast-card-lo {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 18px;
+    color: var(--muted);
+    text-align: center;
+  }
 
   /* BOTTOM Right ROW 1 — AVG HI/LO (CLI) */
   #avg-hilo {
@@ -810,12 +877,13 @@
       allowfullscreen
     ></iframe>
   </div>-->
-</div><!-- end #satellite -->
+</div>
+<!-- end #satellite -->
 
 <!-- 5-DAY FORECAST -->
 <div class="panel" id="forecast">
   <div class="section-title">5-Day Forecast</div>
-  <div id="forecast-list" style="display:flex;flex-direction:column;gap:5px;flex:1;"><div class="loading">Loading...</div></div>
+  <div id="forecast-list"><div class="loading">Loading...</div></div>
 </div>
 
 <!-- AVG HI/LO — NWS CLI Normals /// New Version -->
@@ -899,8 +967,8 @@
   <!-- Parcel Mode Controls 
   <div id="parcel-controls" style="display:grid; grid-template-columns:auto auto; gap:1px;"> grid-template-columns:1fr 1fr; originally changed to auto auto-->  
     <div id="parcel-controls" style="display:flex; gap: 4px;">
-      <button onclick="setParcelMode('SB')">SB</button>
       <button onclick="setParcelMode('WX')">WX</button>
+      <button onclick="setParcelMode('SB')">SB</button>
       <button onclick="setParcelMode('ML')">ML</button>
       <button onclick="setParcelMode('MU')">MU</button>
     </div>
@@ -1050,7 +1118,7 @@ function getNow() { return TEST_NOW ? new Date(TEST_NOW) : new Date(); }
 
 let currentSoundingData = null;
 
-let parcelMode = 'SB';
+let parcelMode = 'WX';
 updateParcelButtons();
 // 'SB' = surface-based (sounding)
 // 'ML' = mixed-layer
@@ -1313,6 +1381,237 @@ async function fetchAmbient() {
   }
 }
 
+// ----- NWS Short Forecast Translation Dictionary -----
+/*
+const forecastMap = {
+  // Sky cover
+  'Mostly Sunny': 'M SUNNY',
+  'Partly Sunny': 'P SUNNY',
+  'Mostly Cloudy': 'M CLOUDY',
+  'Partly Cloudy': 'P CLOUDY',
+  'Sunny': 'SUNNY',
+  'Cloudy': 'CLOUDY',
+  'Clear': 'CLEAR',
+
+  // Probability wording
+  'Slight Chance': 'ISO',
+  'Chance': "SCT'D",
+  'Likely': 'WDSPRD',
+
+  // Precipitation / storms
+  'Showers And Thunderstorms': "T'SHWRS",
+  'Thunderstorms': "T'STORMS",
+  'Showers': 'SHWRS',
+  'Rain Showers': 'SHWRS',
+  'Rain': 'RAIN',
+  'Snow': 'SNOW',
+
+  // Misc weather
+  'Patchy': 'PTCHY',
+  'Areas Of': 'ARAS',
+  'Fog': 'FOG',
+  'Breezy': 'BRZY',
+  'Windy': 'WNDY',
+  'Blustery': 'BLSTRY',
+
+  // Cleanup words
+  'then': '',
+  'And': '&'
+};*/
+/*
+function compactForecast(text) {
+  if (!text) return '';
+
+  let output = text;
+
+  // Sort longest phrases first
+  // Prevents "Sunny" replacing before "Mostly Sunny"
+  const sortedKeys = Object.keys(forecastMap)
+    .sort((a, b) => b.length - a.length);
+
+  sortedKeys.forEach(key => {
+    const regex = new RegExp(key, 'gi');
+    output = output.replace(regex, forecastMap[key]);
+  });
+
+  // Remove duplicate spaces
+  output = output.replace(/\s+/g, ' ').trim();
+
+  return output.toUpperCase();
+}*/
+const probabilityRank = {
+  'Slight Chance': 1,
+  'Chance': 2,
+  'Likely': 3
+};
+const weatherTypes = [
+  {
+    match: /Showers?/i,
+    short: 'SHWRS'
+  },
+  {
+    match: /Thunderstorms?/i,
+    short: "T'STORMS"
+  },
+  //{
+  //  match: /Showers And Thunderstorms?/i,
+  //  short: "T'SHWRS"
+  //},
+  {
+    match: /Rain/i,
+    short: 'RAIN'
+  },
+  {
+    match: /Snow/i,
+    short: 'SNOW'
+  }
+];
+const skyConditions = [
+  {
+    match: /Mostly Sunny/i,
+    short: 'M SUNNY'
+  },
+  {
+    match: /Partly Sunny/i,
+    short: 'P SUNNY'
+  },
+  {
+    match: /Mostly Cloudy/i,
+    short: 'M CLOUDY'
+  },
+  {
+    match: /Partly Cloudy/i,
+    short: 'P CLOUDY'
+  },
+  {
+    match: /Sunny/i,
+    short: 'SUNNY'
+  },
+  {
+    match: /Cloudy/i,
+    short: 'CLOUDY'
+  }
+];
+function compactForecast(text) {
+  if (!text) return '';
+
+  let highestProb = '';
+  let highestRank = 0;
+
+  // ------------------------
+  // Find strongest probability wording
+  // ------------------------
+
+  Object.entries(probabilityRank).forEach(([phrase, rank]) => {
+    if (text.match(new RegExp(phrase, 'i'))) {
+      if (rank > highestRank) {
+        highestRank = rank;
+        highestProb = phrase;
+      }
+    }
+  });
+
+  // ------------------------
+  // Find dominant weather type
+  // ------------------------
+
+  let weather = '';
+
+  weatherTypes.forEach(type => {
+    if (type.match.test(text)) {
+      weather = type.short;
+    }
+  });
+
+  // ------------------------
+  // Find dominant sky condition
+  // ------------------------
+
+  let sky = '';
+
+  skyConditions.forEach(cond => {
+    if (cond.match.test(text)) {
+      sky = cond.short;
+    }
+  });
+
+  // ------------------------
+  // Convert probability wording
+  // ------------------------
+
+  const probMap = {
+    'Slight Chance': 'ISO',
+    'Chance': "SCT'D",
+    'Likely': 'WDSPRD'
+  };
+
+  const prob = probMap[highestProb] || '';
+
+  // ------------------------
+  // Build final output
+  // ------------------------
+
+  const parts = [];
+
+  if (sky) parts.push(sky);
+
+  if (prob && weather) {
+    parts.push(`${prob} ${weather}`);
+  } else if (weather) {
+    parts.push(weather);
+  }
+
+  return parts.join(' ').trim();
+}
+
+function getPrecipWindows(dayText, nightText) {
+    const combinedText = (dayText + " " + nightText).toLowerCase();
+    const windows = new Set();
+    
+    // Helper to check if a specific hour falls into your windows
+    const mapHourToWindow = (hour, ampm) => {
+        let h = parseInt(hour);
+        if (ampm === 'pm' && h !== 12) h += 12;
+        if (ampm === 'am' && h === 12) h = 0;
+        
+        if (h >= 5 && h < 11) return "AM";
+        if (h >= 11 && h < 16) return "AFTN";
+        if (h >= 16 && h < 21) return "PM";
+        return "OVRN"; // 9pm - 5am
+    };
+
+    // 1. Look for specific times (e.g., "after 5pm", "before 10pm", "between 10am and 2pm")
+    const timeMatches = combinedText.matchAll(/(\d+)(am|pm|midnight|noon)/g);
+    for (const match of timeMatches) {
+        let hour = match[1];
+        let ampm = match[2];
+        if (ampm === 'midnight') { hour = 12; ampm = 'am'; }
+        if (ampm === 'noon') { hour = 12; ampm = 'pm'; }
+        windows.add(mapHourToWindow(hour, ampm));
+    }
+
+    // 2. Look for vague NWS phrases if no specific times are found
+    if (combinedText.includes("morning")) windows.add("AM");
+    if (combinedText.includes("afternoon")) windows.add("AFTN");
+    if (combinedText.includes("evening")) windows.add("PM");
+    if (combinedText.includes("overnight")) windows.add("OVRN");
+
+    // Order them: AM, AFTN, PM, OVRN
+    const order = ["AM", "AFTN", "PM", "OVRN"];
+    const result = order.filter(w => windows.has(w));
+
+    let windowLabel = "";
+    if (result.length > 3) {
+        windowLabel = "ALL DAY";
+    } else {
+        windowLabel = result.join('/');
+    }
+    
+    // Format: "PM/OVRN" or just "AM"
+    return windowLabel ? `<br>${windowLabel}` : "";
+}
+
+
 // ---- FORECAST — NWS API----
 async function fetchForecast() {
   try {
@@ -1330,37 +1629,146 @@ async function fetchForecast() {
     // Pull the matching night period for the low temp
     const nights = periods.filter(p => !p.isDaytime);
 
+    // Get the 3-day severe outlooks in the background
+    const severeRisks = await getMultiDayRisks();
+    // SPC Color Coding
+    const spcColors = {
+        'TSTM': {bg: '#c0e8c0', text: '#000'},
+        'MRGL': {bg: '#7fb37f', text: '#000'},
+        'SLGT': {bg: '#f7f796', text: '#000'},
+        'ENH':  {bg: '#f7b061', text: '#000'},
+        'MOD':  {bg: '#e66666', text: '#fff'},
+        'HIGH': {bg: '#ff00ff', text: '#fff'},
+        '0.15': {bg: '#FFFFCC', text: '#333'},
+        '0.30': {bg: '#FFCF99', text: '#333'}
+    };
+
+
     let html = '';
     days.forEach((day, i) => {
       const night = nights[i];
-      const dayName = new Date(day.startTime).toLocaleDateString('en-US', {weekday:'short'});
-      html += `<div class="forecast-row">
-        <span class="forecast-day">${dayName}</span>
-        <span class="forecast-icon">${getIcon(day.shortForecast)}</span>
-        <span class="forecast-desc">${day.shortForecast}</span>
-        <span class="forecast-temps">${day.temperature}° / <span class="forecast-lo">${night ? night.temperature + '°' : '--'}</span></span>
-      </div>`;
+      const dayName = new Date(day.startTime).toLocaleDateString('en-US', {weekday:'short'}).toUpperCase();
+      let iconFile = getIconFile(day.shortForecast, true); //leading text was changed from const to let
+
+      // Override icon if Day 1, 2, or 3 has a significant risk (SLGT or higher)
+      // severeRisks[0] = Day 1, [1] = Day 2, [2] = Day 3
+      const dailyRisk = severeRisks[i] || 'NONE';
+      const riskStyle = spcColors[dailyRisk];
+      // Add the percentage labels to the "trigger" list for icons
+      const significantRisks = ['SLGT', 'ENH', 'MOD', 'HIGH', '15%', '30%'];
+      
+      if (significantRisks.includes(dailyRisk)) {
+          iconFile = 'severe-thunderstorm';
+      }
+      const riskColor = dailyRisk === 'MRGL' ? 'color:#7fb37f;' : '';
+      const headerCSS = riskStyle 
+        ? `background-color: ${riskStyle.bg}; color: ${riskStyle.text}; font-weight: 600;` 
+        : `background-color: rgba(255,255,255,0.03); color: var(--muted);`;
+      /*
+      const precipChance = day.probabilityOfPrecipitation?.value;
+      const roundedPrecip = Math.round(precipChance/10)*10
+      const precipPeriod = getPrecipPeriod(day.detailedForecast);
+      const precipStr = roundedPrecip != null && roundedPrecip > 10
+        ? `${roundedPrecip}%${precipPeriod ? ' ' + precipPeriod : ''}`
+        : '';
+      */
+      const dayPop = day.probabilityOfPrecipitation?.value || 0;
+      const nightPop = night?.probabilityOfPrecipitation?.value || 0;
+      const maxPop = Math.max(dayPop, nightPop);
+
+      let precipStr = '';
+      if (maxPop > 15) { // Only show if chance is > 15%
+          const roundedPop = Math.round(maxPop / 10) * 10;
+          // Call our new parser using both day and night descriptions
+          const timeWindows = getPrecipWindows(day.detailedForecast, night ? night.detailedForecast : "");
+          
+          precipStr = `${roundedPop}%${timeWindows}`; //`${roundedPop}%${timeWindows ? ' ' + timeWindows : ''}`;
+      };
+
+      html += `
+        <div class="forecast-card" style="padding-top: 0; overflow: hidden;">
+          <div class="forecast-card-day" style="
+              ${headerCSS}
+              margin: 0 -10px 10px -10px; 
+              padding: 8px 0; 
+              width: calc(100% + 20px);
+              display: block;
+              text-align: center;
+          ">
+            ${dayName}
+          </div>
+          
+          <img class="forecast-card-icon" src="https://cdn.jsdelivr.net/gh/Makin-Things/weather-icons@main/animated/${iconFile}.svg">
+          <div class="forecast-card-desc">${compactForecast(day.shortForecast)}</div>
+          <div class="forecast-bottom-group">
+            <div class="forecast-card-precip">${precipStr}</div>
+            <div class="forecast-card-hi">${day.temperature}°</div>
+            <div class="forecast-card-lo">${night ? night.temperature + '°' : '--'}</div>
+          </div>
+        </div>`;
     });
+    
     document.getElementById('forecast-list').innerHTML = html;
   } catch(e) {
     document.getElementById('forecast-list').innerHTML = '<div style="color:var(--muted);font-size:11px;padding:8px;">Forecast unavailable</div>';
   }
 }
 
-function getIcon(forecast) {
+
+
+function getPrecipPeriod(detail) {
+  if (!detail) return '';
+  const d = detail.toLowerCase();
+  if (d.includes('overnight') || d.includes('night')) return 'PM';
+  if (d.includes('afternoon') || d.includes('evening')) return 'AFTN';
+  if (d.includes('morning')) return 'AM';
+  return '';
+}
+
+function getIconFile(forecast, isDay) {
   const f = forecast.toLowerCase();
-  if (f.includes('thunder')) return '⛈';
-  if (f.includes('snow') || f.includes('blizzard')) return '❄️';
-  if (f.includes('sleet') || f.includes('wintry mix')) return '🌨';
-  if (f.includes('rain') || f.includes('shower')) return '🌧';
-  if (f.includes('drizzle')) return '🌦';
-  if (f.includes('fog')) return '🌫';
-  if (f.includes('sunny') || f.includes('clear')) return '☀️';
-  if (f.includes('mostly sunny') || f.includes('mostly clear')) return '🌤';
-  if (f.includes('partly')) return '⛅';
-  if (f.includes('cloudy') || f.includes('overcast')) return '☁️';
-  if (f.includes('wind')) return '💨';
-  return '🌡';
+  const tod = isDay ? '-day' : '-night';
+  //if (f.includes('severe thunderstorm') || f.includes('severe storm')) return 'severe-thunderstorm';
+  if (f.includes('severe') || f.includes('strong')) return 'severe-thunderstorm';
+  //if (f.includes('isolated thunder') || f.includes('isolated storm'))   return `isolated-thunderstorms${tod}`;
+  //if (f.includes('scattered thunder') || f.includes('chance thunder') || f.includes('slight chance thunder')) return `scattered-thunderstorms${tod}`;
+  //if (f.includes('thunder'))            return 'thunderstorms';
+  if (f.includes('thunder') || f.includes('showers and thunderstorms')) {
+    if (f.includes('slight chance'))  return `isolated-thunderstorms${tod}`;
+    if (f.includes('chance'))         return `scattered-thunderstorms${tod}`;
+    if (f.includes('likely'))         return `thunderstorms`;
+    return `isolated-thunderstorms${tod}`;
+  }
+  if (f.includes('blizzard'))           return 'snowy-3-day';
+  if (f.includes('sleet') && f.includes('snow')) return 'snow-and-sleet-mix';
+  if (f.includes('sleet') || f.includes('wintry mix') || (f.includes('rain') && f.includes('snow'))) return 'rain-and-sleet-mix';
+  if (f.includes('snow') || f.includes('flurr')) {
+    if (f.includes('slight chance') || f.includes('chance'))  return `snowy-1${tod}`;
+    if (f.includes('likely') || f.includes('heavy'))          return `snowy-3${tod}`;
+    return `snowy-2${tod}`;
+  }
+  if (f.includes('rain') || f.includes('shower') || f.includes('drizzle')) {
+    if (f.includes('slight chance') || f.includes('chance'))  return `rainy-1${tod}`;
+    if (f.includes('likely') || f.includes('heavy'))          return `rainy-3${tod}`;
+    return `rainy-2${tod}`;
+  }
+  if (f.includes('hail'))               return 'hail';
+  if (f.includes('tornado'))            return 'tornado';
+  if (f.includes('hurricane') || f.includes('tropical storm')) return 'hurricane';
+  if (f.includes('dust'))               return 'dust';
+  if (f.includes('haze'))               return `haze${tod}`;
+  if (f.includes('fog'))                return `fog${tod}`;
+  if (f.includes('frost'))              return `frost${tod}`;
+  if (f.includes('wind'))               return 'wind';
+  if (f.includes('sunny') || f.includes('clear')) {
+    if (f.includes('mostly') || f.includes('mostly clear'))   return `cloudy-1${tod}`;
+    if (f.includes('partly'))                                  return `cloudy-2${tod}`;
+    return `clear${tod}`;
+  }
+  if (f.includes('partly cloudy'))      return `cloudy-2${tod}`;
+  if (f.includes('mostly cloudy'))      return `cloudy-3${tod}`;
+  if (f.includes('cloudy') || f.includes('overcast')) return 'cloudy';
+  return `clear${tod}`;
 }
 
 // ---- NWS CLI — Climate Normals ----
@@ -1609,6 +2017,7 @@ function drawSunArc() {
       ctx.fillStyle = 'rgba(30,40,60,0.9)';
       ctx.fill();
 
+      /*
       // illum goes 0→1 as moon goes new→full
       // terminator x offset: at 0% illum = fully dark, 50% = half lit, 100% = fully lit
       // terminator is an ellipse whose x-radius scales from r (new, hidden) to 0 (quarter) to r (full, lit)
@@ -1632,7 +2041,59 @@ function drawSunArc() {
       ctx.fillStyle = moonPhase < 0.5
         ? (isWaxing ? 'rgba(30,40,60,0.9)' : 'rgba(220,230,255,0.9)')
         : (isWaxing ? 'rgba(220,230,255,0.9)' : 'rgba(30,40,60,0.9)');
+      ctx.fill();*/
+
+
+      // Waxing: right side lit. Waning: left side lit.
+      // Step 1 — fill the lit semicircle (half rectangle, clipped to circle)
+      ctx.beginPath();
+      ctx.rect(isWaxing ? mx : mx - r, my - r, r, r * 2);
+      ctx.fillStyle = 'rgba(220,230,255,0.9)';
       ctx.fill();
+
+      // Step 2 — draw the terminator ellipse
+      // x-radius of terminator ellipse: r at new/full (phase=0 or 1), 0 at quarter (phase=0.5)
+      const termRx = r * Math.abs(1 - 2 * moonPhase);
+
+      // The ellipse is always centered at mx (the moon centre).
+      // Crescent  (phase < 0.5): dark ellipse eats into the lit half
+      // Gibbous   (phase > 0.5): lit ellipse extends into the dark half
+      // For waxing the lit half is on the right, for waning on the left —
+      // but because we clip to the lit rect first, we only need to know
+      // whether the ellipse should be dark or lit:
+      const termIsDark = moonPhase < 0.5;
+      ctx.beginPath();
+      ctx.ellipse(mx, my, termRx, r, 0, 0, Math.PI * 2);
+      ctx.fillStyle = termIsDark ? 'rgba(30,40,60,0.9)' : 'rgba(220,230,255,0.9)';
+      ctx.fill();
+/*
+      // termX: signed offset of the terminator ellipse centre from moon centre
+      // Waxing: terminator moves left (negative) as phase grows 0→1
+      // Waning: terminator moves right (positive) as phase shrinks 1→0
+      // At new moon (0): termX = ±r (fully covers lit half → all dark)
+      // At full moon (1): termX = 0  (terminator on centre line → all lit)
+      const termSign = isWaxing ? -1 : 1;
+      const termXOff = termSign * r * (1 - 2 * moonPhase); // signed offset
+
+      // Fill lit half (right for waxing, left for waning)
+      ctx.beginPath();
+      ctx.rect(isWaxing ? mx : mx - r, my - r, r, r * 2);
+      ctx.fillStyle = 'rgba(220,230,255,0.9)';
+      ctx.fill();
+
+      // The terminator ellipse x-radius (always non-negative)
+      const termRx = Math.abs(r * (1 - 2 * moonPhase));
+
+      // Draw the terminator ellipse at the signed offset position
+      // Before half: dark ellipse cuts into the lit semicircle (crescent)
+      // After half: lit ellipse extends across the dark side (gibbous)
+      ctx.beginPath();
+      ctx.ellipse(mx + termXOff, my, termRx, r, 0, 0, Math.PI * 2);
+      ctx.fillStyle = moonPhase < 0.5
+        ? 'rgba(30,40,60,0.9)'      // dark — crescent phase
+        : 'rgba(220,230,255,0.9)';  // lit  — gibbous phase
+      ctx.fill();*/
+
 
       ctx.restore();
 
@@ -1711,9 +2172,11 @@ async function fetchMoon() {
     }
 
     const curPhase = (dataToday.curphase || '').toLowerCase();
-    moonWaxing = curPhase.includes('waxing') || curPhase === 'full moon';
+    //moonWaxing = curPhase.includes('waxing') || curPhase === 'full moon';
+    moonWaxing = curPhase.includes('waxing');
 
     //console.log('Moon rise:', moonriseDate, 'set:', moonsetDate, 'phase:', moonPhase, 'waxing:', moonWaxing);
+    //console.log('Moon rise:', moonriseDate, 'set:', moonsetDate, 'phase:', moonPhase, 'waxing:', moonWaxing, 'curphase:', dataToday.curphase);
 
   } catch(e) {
     console.error('Moon fetch error:', e);
@@ -2052,6 +2515,7 @@ function parseSPC(text) {
     if (parts.length < 6) continue;
 
     const pres = parseFloat(parts[0]);
+    const hght = parseFloat(parts[1]);
     const temp = parseFloat(parts[2]);
     const dew  = parseFloat(parts[3]);
     const wdir = parseFloat(parts[4]);
@@ -2064,7 +2528,21 @@ function parseSPC(text) {
       !isNaN(dew) &&
       pres > 100 && pres < 1100 &&
       temp > -100 && temp < 100
-    ) data.push({ pres, temp, dew, wdir, wspd }); 
+    ) {
+      // Frost point: solve Tf such that es_ice(Tf) = es_water(Td)
+      // es_water (Magnus):  6.1078 * exp(17.2694 * Td / (Td + 237.3))
+      // es_ice   (WMO):     6.1078 * exp(21.8745584 * Tf / (Tf + 265.49))
+      // => 21.8745584 * Tf / (Tf + 265.49) = 17.2694 * Td / (Td + 237.3)
+      // => Tf = 265.49 * A / (21.8745584 - A)  where A = 17.2694 * Td / (Td + 237.3)
+      let frost = null;
+      if (!isNaN(dew) && dew < 0) {
+        // Only physically meaningful when dew point is below 0°C (frost point > dew point)
+        const A = 17.2694 * dew / (dew + 237.3);
+        frost = 265.49 * A / (21.8745584 - A);
+      }
+      //data.push({ pres, temp, dew, frost, wdir, wspd });
+      data.push({ pres, hght: isNaN(hght) ? null : hght, temp, dew, frost, wdir, wspd });
+    }
     //{data.push({ pres, temp, dew });}
   }
 
@@ -2321,8 +2799,10 @@ function computeParcelPath(data) {
 
     parcelType = 'WX';
     // --- Surface-based using station temp ---
-    sfcT = WxTempC ?? sfc.temp;
-    sfcTd = WxDewC ?? sfc.dew; // you can also override this if you want
+    //sfcT = WxTempC ?? sfc.temp;
+    //sfcTd = WxDewC ?? sfc.dew; // you can also override this if you want
+    sfcT  = (WxTempC != null && !isNaN(WxTempC)) ? WxTempC : sfc.temp;
+    sfcTd = (WxDewC  != null && !isNaN(WxDewC))  ? WxDewC  : sfc.dew;
     sfcP = sfc.pres;
     sfcTemp = WxTemp;
 
@@ -2409,10 +2889,206 @@ function computeParcelPath(data) {
   return { parcelPath, P_LCL, T_LCL: T_LCL - 273.15 ,sfcTemp};
 }
 
+function estimateCloudLayers(data) {
+  // Filter to levels with valid height, temp, dew
+  const levels = data
+    .filter(d => d.hght != null && !isNaN(d.hght) &&
+                 !isNaN(d.temp) && !isNaN(d.dew))
+    .sort((a, b) => a.hght - b.hght); // bottom to top
+
+  if (levels.length < 3) return [];
+
+  // Compute RH at each level from T and Td (Magnus formula)
+  function calcRH(T, Td) {
+    return 100 * Math.exp(17.67 * Td / (Td + 243.5)) /
+                 Math.exp(17.67 * T  / (T  + 243.5));
+  }
+
+  // Arabey diagram — max dewpoint depression threshold for each cloud cover zone
+  // Returns cloud cover category string given T(C) and depression(C)
+  function arabeyCloudCover(T, depression) {
+    // Piecewise linear boundaries from Fig. 1 of Chernykh & Eskridge 1996
+    // At T <= -60: all boundaries collapse to ~0
+    // At T = 0:  zone1<1, zone2<3, zone3<6
+    // At T = 40: zone1<1, zone2<2, zone3<4 (extrapolated)
+    const t = Math.max(-60, Math.min(40, T));
+    // Boundary between zone 1 (80-100%) and zone 2 (60-80%)
+    const b12 = t < 0 ? 1 + (t / -60) * 0.5  : 1;
+    // Boundary between zone 2 (60-80%) and zone 3 (20-60%)
+    const b23 = t < 0 ? 3 + (t / -60) * 2.5  : 3 - (t / 40) * 1;
+    // Boundary between zone 3 (20-60%) and zone 4 (0-20%)
+    const b34 = t < 0 ? 6 + (t / -60) * 5.5  : 6 - (t / 40) * 2;
+
+    if (depression <= b12) return { cover: 0.90, opacity: 0.32 }; // 80-100%
+    if (depression <= b23) return { cover: 0.70, opacity: 0.22 }; // 60-80%
+    if (depression <= b34) return { cover: 0.40, opacity: 0.12 }; // 20-60%
+    return null; // 0-20%, not drawn
+  }
+
+  // Finite difference second derivatives with respect to height
+  const n = levels.length;
+  const T2  = new Array(n).fill(0); // T''
+  const RH2 = new Array(n).fill(0); // RH''
+  const RH  = levels.map(d => calcRH(d.temp, d.dew));
+
+  for (let i = 1; i < n - 1; i++) {
+    const dz1 = levels[i].hght   - levels[i-1].hght;
+    const dz2 = levels[i+1].hght - levels[i].hght;
+    const dz  = (dz1 + dz2) / 2;
+    if (dz < 1) continue;
+
+    T2[i]  = (levels[i+1].temp - 2 * levels[i].temp + levels[i-1].temp) / (dz * dz);
+    RH2[i] = (RH[i+1]          - 2 * RH[i]          + RH[i-1])          / (dz * dz);
+  }
+
+  // Find contiguous cloud layers where T'' >= 0 AND RH'' <= 0
+  /*
+  const shapes = [];
+  let inLayer  = false;
+  let layerStart = null;
+  let minDepression = Infinity;
+  let minDepressionT = null;*/
+  // Find contiguous cloud layers where T'' >= 0 AND RH'' <= 0
+  const shapes = [];
+  const layers = []; // metadata for cloud type labeling
+  let inLayer  = false;
+  let layerStart = null;
+  let minDepression = Infinity;
+  let minDepressionT = null;
+
+  for (let i = 1; i < n - 1; i++) {
+    const isCloud = T2[i] >= 0 && RH2[i] <= 0;
+
+    if (isCloud && !inLayer) {
+      inLayer = true;
+      layerStart = levels[i];
+      minDepression  = levels[i].temp - levels[i].dew;
+      minDepressionT = levels[i].temp;
+    } else if (isCloud && inLayer) {
+      const dep = levels[i].temp - levels[i].dew;
+      if (dep < minDepression) {
+        minDepression  = dep;
+        minDepressionT = levels[i].temp;
+      }
+    } else if (!isCloud && inLayer) {
+      inLayer = false;
+      const layerEnd = levels[i];
+      const result   = arabeyCloudCover(minDepressionT, minDepression);
+      if (result) {
+        /*
+        shapes.push({
+          type: 'rect',
+          xref: 'paper',   // span full width of plot
+          yref: 'y',
+          x0: 0, x1: 1,
+          y0: layerEnd.pres,
+          y1: layerStart.pres,
+          fillcolor: `rgba(255,255,255,${result.opacity})`,
+          line: { width: 0 }
+        });*/
+        shapes.push({
+          type: 'rect',
+          xref: 'paper',
+          yref: 'y',
+          x0: 0, x1: 1,
+          y0: layerEnd.pres,
+          y1: layerStart.pres,
+          fillcolor: `rgba(255,255,255,${result.opacity})`,
+          line: { width: 0 }
+        });
+        layers.push({
+          pBase: layerStart.pres,  // bottom of layer (highest pressure)
+          pTop:  layerEnd.pres,    // top of layer
+          pMid:  (layerStart.pres + layerEnd.pres) / 2,
+          cover: result.cover,
+          minDepression,
+          minDepressionT
+        });
+      }
+      minDepression  = Infinity;
+      minDepressionT = null;
+    }
+  }
+
+  // Close any layer still open at the top
+  if (inLayer && layerStart) {
+    const layerEnd = levels[n - 1];
+    const result   = arabeyCloudCover(minDepressionT, minDepression);
+    if (result) {
+      /*shapes.push({
+        type: 'rect',
+        xref: 'paper',
+        yref: 'y',
+        x0: 0, x1: 1,
+        y0: layerEnd.pres,
+        y1: layerStart.pres,
+        fillcolor: `rgba(255,255,255,${result.opacity})`,
+        line: { width: 0 }
+      });*/
+      shapes.push({
+        type: 'rect',
+        xref: 'paper',
+        yref: 'y',
+        x0: 0, x1: 1,
+        y0: layerEnd.pres,
+        y1: layerStart.pres,
+        fillcolor: `rgba(255,255,255,${result.opacity})`,
+        line: { width: 0 }
+      });
+      layers.push({
+        pBase: layerStart.pres,
+        pTop:  layerEnd.pres,
+        pMid:  (layerStart.pres + layerEnd.pres) / 2,
+        cover: result.cover,
+        minDepression,
+        minDepressionT
+      });
+    }
+  }
+
+  //return shapes;
+  return { shapes, layers };
+}
+
+
 function plotSkewT(data) {
   const pressure = data.map(d => d.pres); // hPa
   const temp = data.map(d => d.temp);     // °C
   const dew = data.map(d => d.dew);       // °C
+  //const cloudShapes = estimateCloudLayers(data);
+  // When WX mode is active, replace sub-LCL sounding levels with the
+  // parcel's dry adiabat (T) and constant mixing-ratio line (Td) so that
+  // low-level cumulus cloud base is anchored to the wx station surface values.
+  function wxAdjustedData(data, P_LCL) {
+    if (parcelMode !== 'WX' || WxTempC == null || WxDewC == null) return data;
+
+    const sfcP  = data.reduce((a, b) => a.pres > b.pres ? a : b).pres;
+    const sfcT  = WxTempC + 273.15;   // K
+    const sfcTd = WxDewC  + 273.15;   // K
+
+    // Surface mixing ratio (g/kg) — held constant through the sub-LCL layer
+    const e_sfc = 6.112 * Math.exp(17.67 * WxDewC / (WxDewC + 243.5));
+    const r_sfc = 0.622 * e_sfc / (sfcP - e_sfc); // kg/kg
+
+    return data.map(d => {
+      if (d.pres <= P_LCL) return d;  // at/above LCL — use real sounding
+
+      // Dry adiabat temperature at this pressure level
+      const T_dry = sfcT * Math.pow(d.pres / sfcP, 0.2854) - 273.15;
+
+      // Dewpoint from constant mixing ratio:
+      // e = r * P / (0.622 + r), then invert Magnus formula
+      const e_p  = r_sfc * d.pres / (0.622 + r_sfc);
+      const Td_p = 243.5 * Math.log(e_p / 6.112) / (17.67 - Math.log(e_p / 6.112));
+
+      return { ...d, temp: T_dry, dew: Td_p };
+    });
+  }
+
+  const parcelResult = getParcelPath(data);
+  const P_LCL_wx    = parcelResult?.P_LCL ?? 0;
+  //const cloudShapes = estimateCloudLayers(wxAdjustedData(data, P_LCL_wx));
+  const { shapes: cloudShapes, layers: cloudLayers } = estimateCloudLayers(wxAdjustedData(data, P_LCL_wx));
 
   const P0 = 1000;            // Rotation point (1000 hPa)
   const skewAngleDeg = 35;    // Skew angle from vertical
@@ -2442,6 +3118,21 @@ function plotSkewT(data) {
     line: { color: 'green' },
     name: 'Dewpoint'
   };
+
+  // Frost point trace — only plotted where dew < 0°C (frost point is defined & > dew point)
+  const frostLevels = data.filter(d => d.frost !== null && d.frost !== undefined);
+  const frostPres   = frostLevels.map(d => d.pres);
+  const frostSkew   = frostLevels.map(d => {
+    const y_lin = Math.log(P0 / d.pres);
+    return d.frost + y_lin * Math.tan(skewAngle) * scaleFactor;
+  });
+  const traceFrost = frostLevels.length > 1 ? {
+    x: frostSkew,
+    y: frostPres,
+    mode: 'lines',
+    line: { color: 'rgba(100,220,255,0.75)', width: 1.5, dash: 'dot' },
+    name: 'Frost Point'
+  } : null;
 
   // Optional: plot a test trace to see rotation
   const traceTest = {
@@ -2475,7 +3166,7 @@ function plotSkewT(data) {
   //let capeShapes   = [];
   // Try surface parcel first, fall back to mixed layer parcel
   //let parcelResult = computeParcelPath(data); //← was modified to use current Wx Station temp/dew instead of SPC surface level, but keep original as fallback if that fails
-  let parcelResult = getParcelPath(data);
+  //let parcelResult = getParcelPath(data);
   const activeParcelType = parcelType;
   //let parcelType   = 'SB';
 
@@ -2501,6 +3192,38 @@ function plotSkewT(data) {
 
   let parcelTraces = [];
   let CAPE = 0;
+
+  // ---- Cloud type classification ----
+  function classifyCloudType(layer, CAPE, P_LCL) {
+    const p    = layer.pMid;
+    const dep  = layer.minDepression;
+    const cov  = layer.cover;
+
+    // Altitude tier
+    const isHigh = p < 400;
+    const isMid  = p >= 400 && p < 650;
+    const isLow  = p >= 650;
+
+    // Convective flag: near LCL with any CAPE, OR low-level layer with significant CAPE
+    const nearLCL      = P_LCL && layer.pBase >= P_LCL * 0.85;
+    const isConvective = (nearLCL && CAPE > 200) || (isLow && CAPE > 500);
+
+    if (isHigh) {
+      if (cov >= 0.80) return 'Cs';   // Cirrostratus
+      if (cov >= 0.60) return 'Cs';
+      return 'Ci';                     // Cirrus
+    }
+    if (isMid) {
+      if (cov >= 0.80) return 'As';   // Altostratus
+      return 'Ac';                     // Altocumulus
+    }
+    // Low
+    if (isConvective) {
+      return CAPE > 1000 ? 'Cb' : 'Cu'; // Cumulonimbus vs Cumulus
+    }
+    if (cov >= 0.80 && dep <= 2) return 'St';  // Stratus — high cover, very moist
+    return 'Sc';                               // Stratocumulus — default low
+  }
 
   if (parcelResult) {
     const { parcelPath } = parcelResult;
@@ -2704,7 +3427,26 @@ function plotSkewT(data) {
     
 
   // 6. Plot with Plotly
-  Plotly.newPlot('skewt', [traceTemp, traceDew, ...parcelTraces], {
+  // Build cloud type label traces — one text point per layer, pinned to left edge
+  const cloudLabelTraces = cloudLayers.map(layer => {
+    const label = classifyCloudType(layer, CAPE, P_LCL_wx);
+    return {
+      x: [0.01],   // just inside left edge (paper coords won't work for scatter — use skewed x range)
+      y: [layer.pMid],
+      mode: 'text',
+      text: [label],
+      textposition: 'middle right',
+      textfont: { color: 'rgba(200,220,255,0.75)', size: 9, family: 'IBM Plex Mono, monospace' },
+      xaxis: 'x',
+      showlegend: false,
+    };
+  });
+
+  // Convert paper x=0.01 to actual skewed x-axis value (left edge of plot range)
+  const xMin = (Math.round((Math.min(...skewTemp, ...skewDew) - 10)/10)*10)+5;
+  cloudLabelTraces.forEach(t => { t.x = [xMin + 1]; });
+
+  Plotly.newPlot('skewt', [traceTemp, traceDew, ...(traceFrost ? [traceFrost] : []), ...parcelTraces, ...cloudLabelTraces], {
     margin: { l: 40, r: 10, t: 10, b: 30 },
     paper_bgcolor: '#111720',
     plot_bgcolor: '#111720',
@@ -2720,18 +3462,18 @@ function plotSkewT(data) {
       zeroline: false
     },
     yaxis: {
-      title: 'Pressure (hPa)',
-      type: 'log',
-      range: [Math.log10(pMax), Math.log10(pMin)],
-      autorange: false,
-      showgrid: true,
-      gridcolor: 'rgba(255,255,255,0.1)',
-      autorange: false,
-      autorange: false
+        title: 'Pressure (hPa)',
+        type: 'log',
+        range: [Math.log10(pMax), Math.log10(pMin)],
+        autorange: false,
+        showgrid: true,
+        gridcolor: 'rgba(255,255,255,0.1)'
+      },
+      /*shapes: isotherms,*/
+      shapes: [...cloudShapes, ...isotherms],
+      showlegend: false
     },
-    shapes: isotherms,
-    showlegend: false
-  }, { displayModeBar: false });
+    { displayModeBar: false });
 
   // Draw hodograph overlay after Plotly renders
   setTimeout(() => {
@@ -3007,10 +3749,11 @@ async function loadSounding() {
       });
     }
 
-    const modeOrder = ['SB', 'WX', 'ML', 'MU'];
+    const wxReady = WxTemp != null && WxDew != null && !isNaN(WxTemp) && !isNaN(WxDew);
+    const modeOrder = wxReady ? ['WX', 'SB', 'ML', 'MU'] : ['SB', 'ML', 'MU'];
     const computeFns = {
-      SB: () => { parcelMode = 'SB'; return computeParcelPath(data); },
       WX: () => { parcelMode = 'WX'; return computeParcelPath(data); },
+      SB: () => { parcelMode = 'SB'; return computeParcelPath(data); },
       ML: () => { parcelMode = 'ML'; return computeMLParcelPath(data); },
       MU: () => { parcelMode = 'MU'; return computeMUParcelPath(data); },
     };
@@ -3510,6 +4253,70 @@ async function initSPCMap() {
   });
 }
 
+// Standard Ray-casting algorithm for Point-in-Polygon
+function isPointInPoly(point, vs) {
+    const x = point[0], y = point[1];
+    let inside = false;
+    for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+        const xi = vs[i][0], yi = vs[i][1];
+        const xj = vs[j][0], yj = vs[j][1];
+        const intersect = ((yi > y) !== (yj > y))
+            && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+    }
+    return inside;
+}
+
+function checkCurrentRisk(features) {
+    const point = [parseFloat(LON), parseFloat(LAT)]; 
+    let highestRisk = "NONE";
+
+    if (!features || features.length === 0) return "No Data";
+
+    features.forEach(feature => {
+        const geometry = feature.geometry;
+        if (!geometry) return;
+
+        if (geometry.type === 'Polygon') {
+            if (isPointInPoly(point, geometry.coordinates[0])) {
+                highestRisk = feature.properties.LABEL || highestRisk;
+            }
+        } else if (geometry.type === 'MultiPolygon') {
+            geometry.coordinates.forEach(poly => {
+                if (isPointInPoly(point, poly[0])) {
+                    highestRisk = feature.properties.LABEL || highestRisk;
+                }
+            });
+        }
+    });
+    return highestRisk;
+}
+
+
+async function getMultiDayRisks() {
+  const urls = [
+    'https://www.spc.noaa.gov/products/outlook/day1otlk_cat.lyr.geojson',
+    'https://www.spc.noaa.gov/products/outlook/day2otlk_cat.lyr.geojson',
+    'https://www.spc.noaa.gov/products/outlook/day3otlk_cat.lyr.geojson',
+    'https://www.spc.noaa.gov/products/exper/day4-8/day4prob.lyr.geojson',
+    'https://www.spc.noaa.gov/products/exper/day4-8/day5prob.lyr.geojson',
+  ];
+
+  return Promise.all(urls.map(async (url) => {
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      // Reuse your existing logic that iterates features
+      return checkCurrentRisk(data.features || []); 
+    } catch (e) {
+      return 'NONE';
+    }
+  }));
+}
+
+
+
+
 function loadObsSounding() {
   document.querySelector('#sounding .section-title').textContent = 'Upper Air Sounding';
   document.querySelector('#sounding .section-title').onclick = () => loadModelSounding();
@@ -3574,13 +4381,18 @@ async function loadModelSounding() {
   label.style.color   = '#c084fc'; // purple to distinguish from obs
 
   // Re-run parcel selection and plot
-  const modeOrder  = ['SB', 'WX', 'ML', 'MU'];
-  const computeFns = {
-    SB: () => { parcelMode = 'SB'; return computeParcelPath(data); },
-    WX: () => { parcelMode = 'WX'; return computeParcelPath(data); },
-    ML: () => { parcelMode = 'ML'; return computeMLParcelPath(data); },
-    MU: () => { parcelMode = 'MU'; return computeMUParcelPath(data); },
-  };
+  const wxReady = WxTemp != null && WxDew != null && !isNaN(WxTemp) && !isNaN(WxDew);
+    const modeOrder = wxReady ? ['WX', 'SB', 'ML', 'MU'] : ['SB', 'ML', 'MU'];
+    const computeFns = {
+      WX: () => { parcelMode = 'WX'; return computeParcelPath(data); },
+      SB: () => { parcelMode = 'SB'; return computeParcelPath(data); },
+      ML: () => { parcelMode = 'ML'; return computeMLParcelPath(data); },
+      MU: () => { parcelMode = 'MU'; return computeMUParcelPath(data); },
+    };
+    for (const mode of modeOrder) {
+      const result = computeFns[mode]();
+      if (isValidParcel(result)) break;
+    };
   function isValidParcel(r) {
     if (!r) return false;
     return !r.parcelPath.some(pt => {
@@ -3589,11 +4401,7 @@ async function loadModelSounding() {
         Math.abs(d.pres - pt.pres) < Math.abs(closest.pres - pt.pres) ? d : closest);
       return !isNaN(env.dew) && pt.temp < env.dew;
     });
-  }
-  for (const mode of modeOrder) {
-    const r = computeFns[mode]();
-    if (isValidParcel(r)) break;
-  }
+  };
   updateParcelButtons();
   plotSkewT(data);
 }
@@ -3670,17 +4478,16 @@ function parseBUFKIT(text) {
       tokens.forEach((v, idx) => { if (idx < snparmCols.length) row[snparmCols[idx]] = parseFloat(v); });
 
       const pres = row['PRES'], temp = row['TMPC'], dew = row['DWPC'];
-      const wdir = row['DRCT'], wspd = row['SKNT'];
+      const wdir = row['DRCT'], wspd = row['SKNT'], hght = row['HGHT'];
 
-      //if (!isNaN(pres) && !isNaN(temp) && pres > 100 && pres < 1100 && temp > -100 && temp < 100) {
-      //  data.push({ pres, temp, dew: isNaN(dew) ? temp - 30 : dew, wdir, wspd });
-      //}
       if (!isNaN(pres) && !isNaN(temp) && pres > 100 && pres < 1100 && temp > -100 && temp < 100) {
         const cleanDew  = (!isNaN(dew)  && dew  > -9990) ? dew  : null;
         const cleanWdir = (!isNaN(wdir) && wdir > -9990) ? wdir : null;
         const cleanWspd = (!isNaN(wspd) && wspd > -9990) ? wspd : null;
+        const cleanHght = (!isNaN(hght) && hght > -9990) ? hght : null;
         data.push({
           pres,
+          hght: cleanHght,
           temp,
           dew:  cleanDew  !== null ? cleanDew  : temp - 30,
           wdir: cleanWdir,
@@ -3819,7 +4626,7 @@ setInterval(() => {
     const url = new URL(window.location.href);
     url.searchParams.set('t', Date.now()); // Adds a unique timestamp like ?t=1711554600000
     window.location.href = url.toString();
-}, 1 * 60 * 60 * 1000);
+}, 1.5 * 60 * 60 * 1000);
 
 </script>
 </body>
