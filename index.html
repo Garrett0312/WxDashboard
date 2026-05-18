@@ -193,6 +193,27 @@
     z-index: 10;
     pointer-events: none;
   }
+  .sat-crop-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden; 
+    background: #000;
+  }
+
+  /* Force the iframe to upscale and shift the website headers/sidebars out of bounds */
+  .sat-crop-container iframe {
+    position: absolute;
+    
+    width: 140%; 
+    height: 155%;
+    
+    top: -19%;
+    left: -20%;
+    
+    border: none;
+    pointer-events: auto;
+  }
 
   /* RIGHT COL — FORECAST */
   #forecast {
@@ -216,9 +237,18 @@
     flex-direction: row;
     gap: 5px;
     flex: 1;
+    width: 100%;
+    overflow: hidden; /* Keeps things neat during layout transitions */
+    transition: gap 0.35s cubic-bezier(0.25, 1, 0.5, 1);
   }
+
+  #forecast-list.has-expanded {
+    gap: 0px;
+  }
+
+  /* --- DEFAULT CARD STATE (EQUAL WIDTHS & SMOOTH TRANSITIONS) --- */
   .forecast-card {
-    flex: 1;
+    flex: 1 1 0%;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -231,7 +261,155 @@
     min-width: 0;
     overflow: hidden;
     position: relative;
+    cursor: pointer;
+    opacity: 1;
+    
+    /* Smooth transition for all layout properties when toggled */
+    transition: flex 0.35s cubic-bezier(0.25, 1, 0.5, 1),
+                width 0.35s cubic-bezier(0.25, 1, 0.5, 1),
+                padding 0.35s ease,
+                opacity 0.25s ease,
+                background-color 0.3s ease,
+                border-color 0.3s ease;
   }
+
+  .forecast-card:hover {
+    background: rgba(25, 35, 48, 0.8);
+  }
+
+  /* --- ANIMATED COLLAPSE FOR UNSELECTED PANELS --- */
+  #forecast-list.has-expanded .forecast-card:not(.expanded) {
+    flex: 0 0 0px !important;
+    width: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    opacity: 0 !important;
+    pointer-events: none;
+  }
+
+  /* --- EXPANDED CARD STATE (GRID LAYOUT WITH TRANSITION SAFETY) --- */
+  .forecast-card.expanded {
+    flex: 1 1 100%;
+    background: #162232;
+    border-color: rgba(100, 180, 255, 0.35);
+    cursor: default;
+    
+    display: grid;
+    grid-template-columns: 55px 1fr;
+    grid-template-rows: auto auto 1fr;
+    align-items: start;
+    column-gap: 10px;
+    padding: 6px 10px 10px 10px; /* Tightened padding to prevent vertical blowout */
+  }
+
+  /* Clean full-width header banner */
+  .forecast-card.expanded .forecast-card-day {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    /*width: 100%;*/
+    max-height: 38px;
+    width: calc(100% + 28px) !important; /* Spans 100% plus the left/right expanded card padding */
+    margin: 0 -14px 6px -14px !important;
+    text-align: center;
+    margin-bottom: 2px; /* Slightly reduced gap */
+    font-size: 30px;
+    font-weight: 300;
+    letter-spacing: 1.5px;
+    color: #3aa0ff;
+    border-bottom: 1px solid rgba(100, 180, 255, 0.15);
+    padding-bottom: 4px;
+  }
+
+  /* Position the large icon track */
+  .forecast-card.expanded .forecast-card-icon {
+    grid-column: 1;
+    grid-row: 2;
+    width: 70px;  /* Micro adjustments to prevent bottom push */
+    height: 60px;
+    justify-self: center;
+    margin: 10px 0 8px 0;
+  }
+
+  /* Stack PoP & High/Low metrics neatly under the icon track */
+  .forecast-card.expanded .forecast-bottom-group {
+    grid-column: 1;
+    grid-row: 3;
+    margin-top: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: left;
+    width: 100%;
+  }
+
+  .forecast-card.expanded .forecast-card-precip {
+    font-size: 11px;
+    text-align: center;
+    min-height: 0;
+    margin-bottom: 4px;
+  }
+
+  .forecast-card.expanded .forecast-card-hi {
+    display: inline-block;
+    font-size: 22px;
+    line-height: 1;
+  }
+  
+  .forecast-card.expanded .forecast-card-lo {
+    display: inline-block;
+    font-size: 16px;
+    margin-left: 0px;
+    line-height: 1;
+  }
+
+  /* --- DETAILED TEXT DESCRIPTION WITH CONSTRAINED HEIGHT --- */
+  .forecast-card.expanded .forecast-card-desc {
+    grid-column: 2;
+    grid-row: 2 / 4;
+    
+    display: block; 
+    text-align: left;
+    height: 145px !important;    /* Safely balances space within the 250px parent row layout */
+    max-height: 145px;
+    font-size: 10.5px;
+    line-height: 1.45;
+    color: #e2e8f0;
+    overflow-y: auto; 
+    padding-right: 6px;
+    scrollbar-width: thin;
+  }
+  .forecast-period-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 500;
+    font-size: 15px;
+    color: #3aa0ff;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+  }
+
+  /* Forecast Descriptions formatting */
+  .forecast-period-body {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 10.5px;
+    line-height: 1.4;
+    color: #e2e8f0;
+    margin-bottom: 4px;
+  }
+
+  /* Subtle Custom Scrollbar tracking */
+  .forecast-card.expanded .forecast-card-desc::-webkit-scrollbar {
+    width: 4px;
+  }
+  .forecast-card.expanded .forecast-card-desc::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .forecast-card.expanded .forecast-card-desc::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+  }
+
+
   .forecast-card-day {
     font-family: 'Bebas Neue', sans-serif;
     font-size: 18px;
@@ -243,6 +421,10 @@
     background: rgba(255,255,255,0.08);
     border-radius: 4px;
     padding: 0px 0;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    line-height: normal;
   }
   .forecast-card-icon {
     width: 53px;
@@ -798,7 +980,11 @@
     loading="lazy"
     sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
   ></iframe>
-
+  <!-- Alternative Satellite sources: 
+   ORIGINAL: https://geosphere.ssec.wisc.edu/#playing:true;coordinate:-1362525,4001572;zoom:5.9;coverage:radc;num_frames:8;frame_rate:10;
+   ALTS:
+   - https://www.star.nesdis.noaa.gov/goes/sector_band.php?sat=G19&sector=umv&band=GEOCOLOR&length=24&dim=1&refresh=true
+   -->  
   <!-- SPC map lives INSIDE the satellite panel -->
   <div id="spc-map-container">
 
@@ -1100,7 +1286,7 @@ function getAmbientKeys() {
 
 //const LAT = 41.9779, LON = -91.6656;
 
-let LAT = 41.9779, LON = -91.6656; // fallback coordinates
+let LAT = 41.9720, LON = -91.6587; // fallback coordinates
 
 function initWithLocation(lat, lon) {
   LAT = lat;
@@ -1494,7 +1680,6 @@ const skyConditions = [
 ];
 function compactForecast(text) {
   if (!text) return '';
-
   let highestProb = '';
   let highestRank = 0;
 
@@ -1522,7 +1707,6 @@ function compactForecast(text) {
       weather = type.short;
     }
   });
-
   // ------------------------
   // Find dominant sky condition
   // ------------------------
@@ -1564,6 +1748,7 @@ function compactForecast(text) {
   return parts.join(' ').trim();
 }
 
+
 function getPrecipWindows(dayText, nightText) {
     const combinedText = (dayText + " " + nightText).toLowerCase();
     const windows = new Set();
@@ -1573,9 +1758,8 @@ function getPrecipWindows(dayText, nightText) {
         let h = parseInt(hour);
         if (ampm === 'pm' && h !== 12) h += 12;
         if (ampm === 'am' && h === 12) h = 0;
-        
-        if (h >= 5 && h < 11) return "AM";
-        if (h >= 11 && h < 16) return "AFTN";
+        if (h >= 5 && h < 12) return "AM";
+        if (h >= 12 && h < 16) return "AFTN";
         if (h >= 16 && h < 21) return "PM";
         return "OVRN"; // 9pm - 5am
     };
@@ -1599,6 +1783,8 @@ function getPrecipWindows(dayText, nightText) {
     // Order them: AM, AFTN, PM, OVRN
     const order = ["AM", "AFTN", "PM", "OVRN"];
     const result = order.filter(w => windows.has(w));
+    console.log('combinedText',combinedText);
+    console.log(windows);
 
     let windowLabel = "";
     if (result.length > 3) {
@@ -1611,6 +1797,55 @@ function getPrecipWindows(dayText, nightText) {
     return windowLabel ? `<br>${windowLabel}` : "";
 }
 
+/*
+function getPrecipWindows(dayText, nightText) {
+    const mapHourToWindow = (hour, ampm) => {
+        let h = parseInt(hour);
+        if (ampm === 'pm' && h !== 12) h += 12;
+        if (ampm === 'am' && h === 12) h = 0;
+        if (h >= 5  && h < 12) return "AM";
+        if (h >= 12 && h < 16) return "AFTN";
+        if (h >= 16 && h < 21) return "PM";
+        return "OVRN";
+    };
+
+    function extractWindows(text) {
+        const t = text.toLowerCase();
+        const windows = new Set();
+
+        // 1. Specific times — always takes priority
+        const timeMatches = [...t.matchAll(/(\d+)(am|pm|midnight|noon)/g)];
+        for (const match of timeMatches) {
+            let hour = match[1], ampm = match[2];
+            if (ampm === 'midnight') { hour = 0;  ampm = 'am'; }
+            if (ampm === 'noon')     { hour = 12; ampm = 'pm'; }
+            windows.add(mapHourToWindow(hour, ampm));
+        }
+
+        // 2. Vague phrases — only if no specific times found in this text
+        if (timeMatches.length === 0) {
+            if (t.includes("morning"))   windows.add("AM");
+            if (t.includes("afternoon")) windows.add("AFTN");
+            if (t.includes("evening"))   windows.add("PM");
+            if (t.includes("overnight")) windows.add("OVRN");
+        }
+
+        return windows;
+    }
+
+    // Process day and night separately, then union
+    const dayWindows   = extractWindows(dayText);
+    const nightWindows = extractWindows(nightText);
+    const combined     = new Set([...dayWindows, ...nightWindows]);
+
+    const order  = ["AM", "AFTN", "PM", "OVRN"];
+    const result = order.filter(w => combined.has(w));
+
+    // Only show ALL DAY if all 4 windows are covered
+    const windowLabel = result.length >= 4 ? "ALL DAY" : result.join('/');
+    return windowLabel ? `<br>${windowLabel}` : "";
+}*/
+
 
 // ---- FORECAST — NWS API----
 async function fetchForecast() {
@@ -1619,6 +1854,7 @@ async function fetchForecast() {
     const pointRes = await fetch(`https://api.weather.gov/points/${LAT},${LON}`);
     const pointData = await pointRes.json();
     const forecastUrl = pointData.properties.forecast;
+    //console.log(pointRes);
 
     const fcRes = await fetch(forecastUrl);
     const fcData = await fcRes.json();
@@ -1630,7 +1866,27 @@ async function fetchForecast() {
     const nights = periods.filter(p => !p.isDaytime);
 
     // Get the 3-day severe outlooks in the background
-    const severeRisks = await getMultiDayRisks();
+    //const severeRisks = await getMultiDayRisks();
+
+    // Get the severe outlooks and valid timestamp in the background
+    const severeRisksData = await getMultiDayRisks();
+    const severeRisks = severeRisksData.risks;
+    const day1ValidDate = severeRisksData.day1ValidDate;
+
+    // Calculate alignment offset if NWS rolled to tomorrow but SPC Day 1 is still today
+    let riskIndexOffset = 0;
+    if (days.length > 0 && day1ValidDate) {
+      // Formats the NWS start time (e.g., "2026-05-15T06:00...") down to "20260515" safely
+      const day0DateStr = days[0].startTime.slice(0, 10).replace(/-/g, '');
+
+      console.log('FcstDay0Date',day0DateStr);
+      console.log('SPC Day1 Date',day1ValidDate);
+      
+      if (day0DateStr !== day1ValidDate) {
+        riskIndexOffset = 1; // Shift our risk checking forward by 1 day
+      }
+    }
+    
     // SPC Color Coding
     const spcColors = {
         'TSTM': {bg: '#c0e8c0', text: '#000'},
@@ -1652,7 +1908,8 @@ async function fetchForecast() {
 
       // Override icon if Day 1, 2, or 3 has a significant risk (SLGT or higher)
       // severeRisks[0] = Day 1, [1] = Day 2, [2] = Day 3
-      const dailyRisk = severeRisks[i] || 'NONE';
+      //const dailyRisk = severeRisks[i] || 'NONE';
+      const dailyRisk = severeRisks[i + riskIndexOffset] || 'NONE';
       const riskStyle = spcColors[dailyRisk];
       // Add the percentage labels to the "trigger" list for icons
       const significantRisks = ['SLGT', 'ENH', 'MOD', 'HIGH', '15%', '30%'];
@@ -1685,6 +1942,7 @@ async function fetchForecast() {
           precipStr = `${roundedPop}%${timeWindows}`; //`${roundedPop}%${timeWindows ? ' ' + timeWindows : ''}`;
       };
 
+      /*
       html += `
         <div class="forecast-card" style="padding-top: 0; overflow: hidden;">
           <div class="forecast-card-day" style="
@@ -1706,15 +1964,159 @@ async function fetchForecast() {
             <div class="forecast-card-lo">${night ? night.temperature + '°' : '--'}</div>
           </div>
         </div>`;
-    });
+    });*/
+      let shortDesc = compactForecast(day.shortForecast);
+      const precipKeywords = ['RAIN', 'SHWRS', 'STORMS', 'SNOW'];
+      const hasDayPrecip = precipKeywords.some(kw => shortDesc.includes(kw));
+
+      // If day has no precip wording but the panel is showing a PoP, look at the night period
+      if (!hasDayPrecip && night && maxPop > 15) {
+        const nightDesc = compactForecast(night.shortForecast);
+        const hasNightPrecip = precipKeywords.some(kw => nightDesc.includes(kw));
+        
+        if (hasNightPrecip) {
+          // Strip out probability qualifiers (ISO, SCT'D, WDSPRD) 
+          let cleanNight = nightDesc
+            .replace(/\b(ISO|SCT'D|WDSPRD)\b/gi, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+          
+          if (cleanNight) {
+            shortDesc += ` PM ${cleanNight}`;
+          }
+        }
+      }
+      // -------------------------------------
+
+      // --- ICON ALIGNMENT FIX FOR CLEAR DAYS/NIGHTS ---
+      const isClearIcon = iconFile === 'clear-day' || iconFile === 'clear-night';
+      const iconStyle = isClearIcon ? 'style="transform: scale(1.25) translate(11px, 4px);"' : '';
+
+      // --- CREATE LONG-FORM WEEKDAY STRINGS FOR EXPANSION ---
+      const longDayName = new Date(day.startTime).toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
+
+      // --- RESTRUCTURE HTML STRING TO CACHE SEPARATE DAY & NIGHT DATA ATTRIBUTES ---
+      html += `
+        <div class="forecast-card" onclick="toggleForecastExpand(this)" style="padding-top: 0; overflow: hidden;">
+          <div class="forecast-card-day" 
+               style="${headerCSS} margin: 0 -10px 10px -10px; padding: 8px 0; width: calc(100% + 20px); display: block; text-align: center;"
+               data-short-day="${dayName}" 
+               data-full-day="${longDayName}">
+            ${dayName}
+          </div>
+          
+          <img class="forecast-card-icon" ${iconStyle} src="https://cdn.jsdelivr.net/gh/Makin-Things/weather-icons@main/animated/${iconFile}.svg">
+          
+          <div class="forecast-card-desc" 
+               data-short="${shortDesc.replace(/"/g, '&quot;')}" 
+               data-day-text="${day.detailedForecast.replace(/"/g, '&quot;')}" 
+               data-night-text="${night ? night.detailedForecast.replace(/"/g, '&quot;') : 'Clear/No detailed timeline data available.'}">
+            ${shortDesc}
+          </div>
+               
+          <div class="forecast-bottom-group">
+            <div class="forecast-card-precip">${precipStr}</div>
+            <div class="forecast-card-hi">${day.temperature}°</div>
+            <div class="forecast-card-lo">${night ? night.temperature + '°' : '--'}</div>
+          </div>
+        </div>`;
+
+      console.log('forecast icon', iconFile);
+    }); // <-- End of days.forEach loop
     
     document.getElementById('forecast-list').innerHTML = html;
   } catch(e) {
+    console.error(e);
     document.getElementById('forecast-list').innerHTML = '<div style="color:var(--muted);font-size:11px;padding:8px;">Forecast unavailable</div>';
   }
 }
+/*
+function toggleForecastExpand(card) {
+  const list = document.getElementById('forecast-list');
+  const isCurrentlyExpanded = card.classList.contains('expanded');
+  
+  // 1. Reset all cards back to short text and remove active classes
+  document.querySelectorAll('.forecast-card').forEach(c => {
+    c.classList.remove('expanded');
+    const desc = c.querySelector('.forecast-card-desc');
+    if (desc && desc.getAttribute('data-short')) {
+      desc.textContent = desc.getAttribute('data-short');
+    }
+  });
 
+  // 2. Toggle the parent container state and expand the targeted card
+  if (!isCurrentlyExpanded) {
+    list.classList.add('has-expanded');
+    card.classList.add('expanded');
+    const desc = card.querySelector('.forecast-card-desc');
+    if (desc && desc.getAttribute('data-full')) {
+      desc.textContent = desc.getAttribute('data-full');
+    }
+  } else {
+    list.classList.remove('has-expanded');
+  }
+}*/
+function toggleForecastExpand(card) {
+  const list = document.getElementById('forecast-list');
+  const isCurrentlyExpanded = card.classList.contains('expanded');
+  const dayTitleEl = card.querySelector('.forecast-card-day');
+  
+  // 1. Reset all cards back to baseline unexpanded states
+  document.querySelectorAll('.forecast-card').forEach(c => {
+    c.classList.remove('expanded');
+    
+    // Reset Day Abbreviation titles
+    const titleEl = c.querySelector('.forecast-card-day');
+    if (titleEl && titleEl.getAttribute('data-short-day')) {
+      titleEl.textContent = titleEl.getAttribute('data-short-day');
+    }
+    
+    // Reset short summary text 
+    const desc = c.querySelector('.forecast-card-desc');
+    if (desc && desc.getAttribute('data-short')) {
+      desc.innerHTML = desc.getAttribute('data-short');
+    }
+  });
 
+  // 2. Switch states if opening a new card
+  if (!isCurrentlyExpanded) {
+    list.classList.add('has-expanded');
+    card.classList.add('expanded');
+    
+    // Transform title header to full string name (e.g., TUE -> TUESDAY)
+    if (dayTitleEl && dayTitleEl.getAttribute('data-full-day')) {
+      dayTitleEl.textContent = dayTitleEl.getAttribute('data-full-day');
+    }
+    
+    // Extract both day & night periods and build the stacked layout markup
+    const desc = card.querySelector('.forecast-card-desc');
+    if (desc) {
+      const dayText = desc.getAttribute('data-day-text') || 'No data.';
+      const nightText = desc.getAttribute('data-night-text') || 'No data.';
+      
+      desc.innerHTML = `
+        <div class="forecast-period-title">TODAY:</div>
+        <div class="forecast-period-body">${dayText}</div>
+        <div class="forecast-period-title" style="margin-top: 8px;">TONIGHT:</div>
+        <div class="forecast-period-body">${nightText}</div>
+      `;
+    }
+  } else {
+    list.classList.remove('has-expanded');
+  }
+}
+
+/*
+<img class="forecast-card-icon" src="https://cdn.jsdelivr.net/gh/Makin-Things/weather-icons@main/animated/${iconFile}.svg">
+          <div class="forecast-card-desc">${shortDesc}</div>
+          <div class="forecast-bottom-group">
+            <div class="forecast-card-precip">${precipStr}</div>
+            <div class="forecast-card-hi">${day.temperature}°</div>
+            <div class="forecast-card-lo">${night ? night.temperature + '°' : '--'}</div>
+          </div>
+        </div>`;
+        console.log('sorecast icon',iconFile);
+*/
 
 function getPrecipPeriod(detail) {
   if (!detail) return '';
@@ -1761,7 +2163,7 @@ function getIconFile(forecast, isDay) {
   if (f.includes('frost'))              return `frost${tod}`;
   if (f.includes('wind'))               return 'wind';
   if (f.includes('sunny') || f.includes('clear')) {
-    if (f.includes('mostly') || f.includes('mostly clear'))   return `cloudy-1${tod}`;
+    if (f.includes('mostly') || f.includes('mostly clear'))   return `clear${tod}`;
     if (f.includes('partly'))                                  return `cloudy-2${tod}`;
     return `clear${tod}`;
   }
@@ -1770,6 +2172,8 @@ function getIconFile(forecast, isDay) {
   if (f.includes('cloudy') || f.includes('overcast')) return 'cloudy';
   return `clear${tod}`;
 }
+//clear-day
+
 
 // ---- NWS CLI — Climate Normals ----
 // Actual format (from NWS DVN/CID):
@@ -1872,11 +2276,6 @@ function formatAlertTime(isoString) {
   return `${month}. ${day}${suffix} at ${h12} ${ampm}`;
 }
 
-///```
-///For the two alerts you shared right now that would produce ticker entries like:
-///```
-///⚠ A "Red Flag Warning" has been issued from Mar. 28th at 10am until Mar. 28th at 9pm
-/// ⚠ A "Special Weather Statement" has been issued from Mar. 27th at 11am until Mar. 27th at 6pm
 
 // ---- ALERTS AUTO-SCROLL ----
 function maybeScrollAlerts() {
@@ -2222,62 +2621,7 @@ async function fetchSun() {
   }
 }
 
-/*
-// ---- NWS ALERTS + SUNRISE/SUNSET ----
-async function fetchAlerts() {
-  try {
-    const [aRes, sRes] = await Promise.all([
-      fetch(`https://api.weather.gov/alerts/active?point=${LAT},${LON}`),
-      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&daily=sunrise,sunset&forecast_days=1&timezone=America%2FChicago`)
-    ]);
-    const aData = await aRes.json();
-    const sData = await sRes.json();
-    const alerts  = aData.features || [];
-    const sunrise = sData.daily?.sunrise?.[0] ? new Date(sData.daily.sunrise[0]).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '--';
-    const sunset  = sData.daily?.sunset?.[0]  ? new Date(sData.daily.sunset[0]).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})  : '--';
 
-    // Update sunrise/sunset — now in dedicated elements, always visible
-    document.getElementById('sunrise-val').textContent = sunrise;
-    document.getElementById('sunset-val').textContent  = sunset;
-
-
-    //         html += `<div class="alert-box"><div class="alert-head">${a.properties.event}</div>A ${a.properties.event} has been issued from ${formatAlertTime(onset)} until ${formatAlertTime(ends)}<br><br>${a.properties.description || a.properties.parameters.NWSheadline || ''}</div>`;
-    let html = '';
-    if (!alerts.length) {
-      html += `<div class="alert-box ok"><div class="alert-head">No Active Alerts</div>All clear for Cedar Rapids, IA</div>`;
-    } else {
-      alerts.forEach(a => {
-        const onset = a.properties.onset;
-        const ends  = a.properties.ends || a.properties.expires;
-        html += `<div class="alert-box">
-          <div class="alert-head">${a.properties.event}</div>
-          A ${a.properties.event} has been issued from ${formatAlertTime(onset)} until ${formatAlertTime(ends)}<br><br>
-          ${a.properties.parameters.NWSheadline || ''}
-        </div>`;
-      });
-    }
-    document.getElementById('alert-content-inner').innerHTML = html;
-    maybeScrollAlerts();
-
-    // Update ticker with active alerts
-    if (alerts.length) {
-      const alertTickerParts = alerts.map(a => {
-        const onset  = a.properties.onset;
-        const ends   = a.properties.ends || a.properties.expires;
-        return `⚠ A ${a.properties.event} has been issued from ${formatAlertTime(onset)} until ${formatAlertTime(ends)} // ${a.properties.instruction || a.properties.parameters.NWSheadline || ''} ⚠`;
-      });
-      // Prepend alert info to the existing ticker, separated by ///
-      const existingTicker = document.getElementById('ticker').innerHTML;
-      document.getElementById('ticker').innerHTML =
-        alertTickerParts.join('<span class="tick-sep">///</span>') +
-        '<span class="tick-sep">///</span>' +
-        existingTicker;
-    }
-  } catch(e) {
-    document.getElementById('alert-content-inner').innerHTML = '<div class="alert-box ok"><div class="alert-head">Alerts Unavailable</div>Could not reach NWS API</div>';
-  }
-}
-*/
 
 function truncateDescription(desc, plainText = false) {
   if (!desc) return '';
@@ -3473,7 +3817,10 @@ function plotSkewT(data) {
       shapes: [...cloudShapes, ...isotherms],
       showlegend: false
     },
-    { displayModeBar: false });
+    { displayModeBar: false,
+      responsive: false,
+      staticPlot: true
+     });
 
   // Draw hodograph overlay after Plotly renders
   setTimeout(() => {
@@ -3790,6 +4137,9 @@ function getParcelPath(data) {
 // url: 'https://www.spc.noaa.gov/products/activity_loop.gif',
 
 
+// Primary SAT SOURCE: https://geosphere.ssec.wisc.edu/#playing:true;coordinate:-1362525,4001572;zoom:5.9;coverage:radc;num_frames:8;frame_rate:10;
+//other SAT SOURCES: 
+// https://www.star.nesdis.noaa.gov/goes/sector_band.php?sat=G19&sector=umv&band=GEOCOLOR&length=24&dim=1&refresh=true
 // ---- SATELLITE TOGGLE ----
 const SAT_SOURCES = {
   satellite: {
@@ -3826,6 +4176,17 @@ function cycleSource(target) {
   } else {
     satMode = target;
   }
+
+  (function() {
+    const originalWarn = console.warn;
+    console.warn = function(...args) {
+        // If the warning mentions Canvas2D readback optimizations, silent it
+        if (args[0] && typeof args[0] === 'string' && args[0].includes('willReadFrequently')) {
+            return;
+        }
+        originalWarn.apply(console, args);
+    };
+})();
 
   const src = SAT_SOURCES[satMode];
   document.getElementById('sat-iframe').src             = src.url;
@@ -4209,7 +4570,7 @@ async function switchSPCLayer(btn) {
     buildLegend([], false);
   }
 }
-
+//console.log('LAT:',LAT,'LON:',LON);
 // ---- One-time map init (called when SPC panel first becomes visible) ----
 async function initSPCMap() {
   if (spcMapReady) {
@@ -4222,7 +4583,8 @@ async function initSPCMap() {
 
   // Create Leaflet map — no tile layer, dark background via CSS
   spcMap = L.map('spc-map', {
-    center:          [41.9, -91.6],
+    //center:          [41.9, -91.6],
+    center: [LAT,LON],
     zoom:            6,
     zoomControl:     true,
     attributionControl: false,
@@ -4292,7 +4654,7 @@ function checkCurrentRisk(features) {
     return highestRisk;
 }
 
-
+/*
 async function getMultiDayRisks() {
   const urls = [
     'https://www.spc.noaa.gov/products/outlook/day1otlk_cat.lyr.geojson',
@@ -4306,15 +4668,56 @@ async function getMultiDayRisks() {
     try {
       const res = await fetch(url);
       const data = await res.json();
+
+      // Look for the VALID property inside Day 1 features to get the SPC calendar date
+      if (url.includes('day1otlk') && data.features && data.features.length > 0) {
+        const featWithValid = data.features.find(f => f.properties && f.properties.VALID);
+        if (featWithValid) {
+          day1ValidDate = String(featWithValid.properties.VALID).slice(0, 8); // Extracts 'YYYYMMDD'
+        }
+      }
+
       // Reuse your existing logic that iterates features
       return checkCurrentRisk(data.features || []); 
     } catch (e) {
       return 'NONE';
     }
   }));
+}*/
+
+async function getMultiDayRisks() {
+  const urls = [
+    'https://www.spc.noaa.gov/products/outlook/day1otlk_cat.lyr.geojson',
+    'https://www.spc.noaa.gov/products/outlook/day2otlk_cat.lyr.geojson',
+    'https://www.spc.noaa.gov/products/outlook/day3otlk_cat.lyr.geojson',
+    'https://www.spc.noaa.gov/products/exper/day4-8/day4prob.lyr.geojson',
+    'https://www.spc.noaa.gov/products/exper/day4-8/day5prob.lyr.geojson',
+  ];
+
+  let day1ValidDate = null;
+
+  const risks = await Promise.all(urls.map(async (url) => {
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      
+      // Look for the VALID property inside Day 1 features to get the SPC calendar date
+      if (url.includes('day1otlk') && data.features && data.features.length > 0) {
+        const featWithValid = data.features.find(f => f.properties && f.properties.VALID);
+        if (featWithValid) {
+          day1ValidDate = String(featWithValid.properties.VALID).slice(0, 8); // Extracts 'YYYYMMDD'
+        }
+      }
+
+      return checkCurrentRisk(data.features || []); 
+    } catch (e) {
+      return 'NONE';
+    }
+  }));
+
+  // Return both the risks array and the validated SPC date string
+  return { risks, day1ValidDate };
 }
-
-
 
 
 function loadObsSounding() {
