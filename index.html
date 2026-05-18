@@ -328,7 +328,7 @@
     width: 70px;  /* Micro adjustments to prevent bottom push */
     height: 60px;
     justify-self: center;
-    margin: 10px 0 8px 0;
+    margin: 8px 0 8px 0;
   }
 
   /* Stack PoP & High/Low metrics neatly under the icon track */
@@ -339,7 +339,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    text-align: left;
+    text-align: center;
     width: 100%;
   }
 
@@ -352,13 +352,13 @@
 
   .forecast-card.expanded .forecast-card-hi {
     display: inline-block;
-    font-size: 22px;
+    font-size: 28px;
     line-height: 1;
   }
   
   .forecast-card.expanded .forecast-card-lo {
     display: inline-block;
-    font-size: 16px;
+    font-size: 24px;
     margin-left: 0px;
     line-height: 1;
   }
@@ -382,7 +382,7 @@
   .forecast-period-title {
     font-family: 'IBM Plex Mono', monospace;
     font-weight: 500;
-    font-size: 15px;
+    font-size: 16px;
     color: #3aa0ff;
     letter-spacing: 0.5px;
     margin-bottom: 2px;
@@ -391,7 +391,7 @@
   /* Forecast Descriptions formatting */
   .forecast-period-body {
     font-family: 'IBM Plex Sans', sans-serif;
-    font-size: 10.5px;
+    font-size: 14px; /* 10.5px*/
     line-height: 1.4;
     color: #e2e8f0;
     margin-bottom: 4px;
@@ -1389,7 +1389,6 @@ function drawWindBarb(speedMph, dirDeg) {
     //('kt is between 3 and 5:');
   }
 
-  //console.log('kt:',kt);
 
   // Wind barbs point INTO the wind — shaft tip is at center (station dot),
   // barbs hang off the far end of the shaft.
@@ -1560,71 +1559,15 @@ async function fetchAmbient() {
     document.getElementById('ticker').dataset.wx = wxContent;
     updateTicker();
 
-    document.getElementById('last-updated').textContent = `AWx ${LAT}/${LON}: ` + new Date().toLocaleTimeString();
+    //document.getElementById('last-updated').textContent = `${LAT}/${LON}: ` + new Date().toLocaleTimeString();
+    document.getElementById('last-updated').textContent = `${Number(LAT).toFixed(2)}/${Number(LON).toFixed(2)}: ` + new Date().toLocaleTimeString();
   } catch(e) {
     document.getElementById('wx-loading').textContent = 'Station error: ' + e.message;
     console.error('Ambient Weather:', e);
   }
 }
 
-// ----- NWS Short Forecast Translation Dictionary -----
-/*
-const forecastMap = {
-  // Sky cover
-  'Mostly Sunny': 'M SUNNY',
-  'Partly Sunny': 'P SUNNY',
-  'Mostly Cloudy': 'M CLOUDY',
-  'Partly Cloudy': 'P CLOUDY',
-  'Sunny': 'SUNNY',
-  'Cloudy': 'CLOUDY',
-  'Clear': 'CLEAR',
 
-  // Probability wording
-  'Slight Chance': 'ISO',
-  'Chance': "SCT'D",
-  'Likely': 'WDSPRD',
-
-  // Precipitation / storms
-  'Showers And Thunderstorms': "T'SHWRS",
-  'Thunderstorms': "T'STORMS",
-  'Showers': 'SHWRS',
-  'Rain Showers': 'SHWRS',
-  'Rain': 'RAIN',
-  'Snow': 'SNOW',
-
-  // Misc weather
-  'Patchy': 'PTCHY',
-  'Areas Of': 'ARAS',
-  'Fog': 'FOG',
-  'Breezy': 'BRZY',
-  'Windy': 'WNDY',
-  'Blustery': 'BLSTRY',
-
-  // Cleanup words
-  'then': '',
-  'And': '&'
-};*/
-/*
-function compactForecast(text) {
-  if (!text) return '';
-
-  let output = text;
-
-  // Sort longest phrases first
-  // Prevents "Sunny" replacing before "Mostly Sunny"
-  const sortedKeys = Object.keys(forecastMap)
-    .sort((a, b) => b.length - a.length);
-
-  sortedKeys.forEach(key => {
-    const regex = new RegExp(key, 'gi');
-    output = output.replace(regex, forecastMap[key]);
-  });
-
-  // Remove duplicate spaces
-  output = output.replace(/\s+/g, ' ').trim();
-
-  return output.toUpperCase();
-}*/
 const probabilityRank = {
   'Slight Chance': 1,
   'Chance': 2,
@@ -1783,8 +1726,6 @@ function getPrecipWindows(dayText, nightText) {
     // Order them: AM, AFTN, PM, OVRN
     const order = ["AM", "AFTN", "PM", "OVRN"];
     const result = order.filter(w => windows.has(w));
-    console.log('combinedText',combinedText);
-    console.log(windows);
 
     let windowLabel = "";
     if (result.length > 3) {
@@ -1796,55 +1737,6 @@ function getPrecipWindows(dayText, nightText) {
     // Format: "PM/OVRN" or just "AM"
     return windowLabel ? `<br>${windowLabel}` : "";
 }
-
-/*
-function getPrecipWindows(dayText, nightText) {
-    const mapHourToWindow = (hour, ampm) => {
-        let h = parseInt(hour);
-        if (ampm === 'pm' && h !== 12) h += 12;
-        if (ampm === 'am' && h === 12) h = 0;
-        if (h >= 5  && h < 12) return "AM";
-        if (h >= 12 && h < 16) return "AFTN";
-        if (h >= 16 && h < 21) return "PM";
-        return "OVRN";
-    };
-
-    function extractWindows(text) {
-        const t = text.toLowerCase();
-        const windows = new Set();
-
-        // 1. Specific times — always takes priority
-        const timeMatches = [...t.matchAll(/(\d+)(am|pm|midnight|noon)/g)];
-        for (const match of timeMatches) {
-            let hour = match[1], ampm = match[2];
-            if (ampm === 'midnight') { hour = 0;  ampm = 'am'; }
-            if (ampm === 'noon')     { hour = 12; ampm = 'pm'; }
-            windows.add(mapHourToWindow(hour, ampm));
-        }
-
-        // 2. Vague phrases — only if no specific times found in this text
-        if (timeMatches.length === 0) {
-            if (t.includes("morning"))   windows.add("AM");
-            if (t.includes("afternoon")) windows.add("AFTN");
-            if (t.includes("evening"))   windows.add("PM");
-            if (t.includes("overnight")) windows.add("OVRN");
-        }
-
-        return windows;
-    }
-
-    // Process day and night separately, then union
-    const dayWindows   = extractWindows(dayText);
-    const nightWindows = extractWindows(nightText);
-    const combined     = new Set([...dayWindows, ...nightWindows]);
-
-    const order  = ["AM", "AFTN", "PM", "OVRN"];
-    const result = order.filter(w => combined.has(w));
-
-    // Only show ALL DAY if all 4 windows are covered
-    const windowLabel = result.length >= 4 ? "ALL DAY" : result.join('/');
-    return windowLabel ? `<br>${windowLabel}` : "";
-}*/
 
 
 // ---- FORECAST — NWS API----
@@ -1877,11 +1769,7 @@ async function fetchForecast() {
     let riskIndexOffset = 0;
     if (days.length > 0 && day1ValidDate) {
       // Formats the NWS start time (e.g., "2026-05-15T06:00...") down to "20260515" safely
-      const day0DateStr = days[0].startTime.slice(0, 10).replace(/-/g, '');
-
-      console.log('FcstDay0Date',day0DateStr);
-      console.log('SPC Day1 Date',day1ValidDate);
-      
+      const day0DateStr = days[0].startTime.slice(0, 10).replace(/-/g, '');      
       if (day0DateStr !== day1ValidDate) {
         riskIndexOffset = 1; // Shift our risk checking forward by 1 day
       }
@@ -1942,29 +1830,6 @@ async function fetchForecast() {
           precipStr = `${roundedPop}%${timeWindows}`; //`${roundedPop}%${timeWindows ? ' ' + timeWindows : ''}`;
       };
 
-      /*
-      html += `
-        <div class="forecast-card" style="padding-top: 0; overflow: hidden;">
-          <div class="forecast-card-day" style="
-              ${headerCSS}
-              margin: 0 -10px 10px -10px; 
-              padding: 8px 0; 
-              width: calc(100% + 20px);
-              display: block;
-              text-align: center;
-          ">
-            ${dayName}
-          </div>
-          
-          <img class="forecast-card-icon" src="https://cdn.jsdelivr.net/gh/Makin-Things/weather-icons@main/animated/${iconFile}.svg">
-          <div class="forecast-card-desc">${compactForecast(day.shortForecast)}</div>
-          <div class="forecast-bottom-group">
-            <div class="forecast-card-precip">${precipStr}</div>
-            <div class="forecast-card-hi">${day.temperature}°</div>
-            <div class="forecast-card-lo">${night ? night.temperature + '°' : '--'}</div>
-          </div>
-        </div>`;
-    });*/
       let shortDesc = compactForecast(day.shortForecast);
       const precipKeywords = ['RAIN', 'SHWRS', 'STORMS', 'SNOW'];
       const hasDayPrecip = precipKeywords.some(kw => shortDesc.includes(kw));
@@ -2020,8 +1885,6 @@ async function fetchForecast() {
             <div class="forecast-card-lo">${night ? night.temperature + '°' : '--'}</div>
           </div>
         </div>`;
-
-      console.log('forecast icon', iconFile);
     }); // <-- End of days.forEach loop
     
     document.getElementById('forecast-list').innerHTML = html;
@@ -2030,32 +1893,7 @@ async function fetchForecast() {
     document.getElementById('forecast-list').innerHTML = '<div style="color:var(--muted);font-size:11px;padding:8px;">Forecast unavailable</div>';
   }
 }
-/*
-function toggleForecastExpand(card) {
-  const list = document.getElementById('forecast-list');
-  const isCurrentlyExpanded = card.classList.contains('expanded');
-  
-  // 1. Reset all cards back to short text and remove active classes
-  document.querySelectorAll('.forecast-card').forEach(c => {
-    c.classList.remove('expanded');
-    const desc = c.querySelector('.forecast-card-desc');
-    if (desc && desc.getAttribute('data-short')) {
-      desc.textContent = desc.getAttribute('data-short');
-    }
-  });
 
-  // 2. Toggle the parent container state and expand the targeted card
-  if (!isCurrentlyExpanded) {
-    list.classList.add('has-expanded');
-    card.classList.add('expanded');
-    const desc = card.querySelector('.forecast-card-desc');
-    if (desc && desc.getAttribute('data-full')) {
-      desc.textContent = desc.getAttribute('data-full');
-    }
-  } else {
-    list.classList.remove('has-expanded');
-  }
-}*/
 function toggleForecastExpand(card) {
   const list = document.getElementById('forecast-list');
   const isCurrentlyExpanded = card.classList.contains('expanded');
@@ -2065,13 +1903,13 @@ function toggleForecastExpand(card) {
   document.querySelectorAll('.forecast-card').forEach(c => {
     c.classList.remove('expanded');
     
-    // Reset Day Abbreviation titles
+    // Reset Day Abbreviation titles (e.g. TUESDAY -> TUE)
     const titleEl = c.querySelector('.forecast-card-day');
     if (titleEl && titleEl.getAttribute('data-short-day')) {
       titleEl.textContent = titleEl.getAttribute('data-short-day');
     }
     
-    // Reset short summary text 
+    // Reset back to short summary text 
     const desc = c.querySelector('.forecast-card-desc');
     if (desc && desc.getAttribute('data-short')) {
       desc.innerHTML = desc.getAttribute('data-short');
@@ -2083,9 +1921,12 @@ function toggleForecastExpand(card) {
     list.classList.add('has-expanded');
     card.classList.add('expanded');
     
-    // Transform title header to full string name (e.g., TUE -> TUESDAY)
-    if (dayTitleEl && dayTitleEl.getAttribute('data-full-day')) {
-      dayTitleEl.textContent = dayTitleEl.getAttribute('data-full-day');
+    // Get the full name string (e.g. "TUESDAY")
+    const fullDayName = dayTitleEl ? dayTitleEl.getAttribute('data-full-day') : '';
+
+    // Transform title header to full word string name
+    if (dayTitleEl && fullDayName) {
+      dayTitleEl.textContent = fullDayName;
     }
     
     // Extract both day & night periods and build the stacked layout markup
@@ -2094,10 +1935,17 @@ function toggleForecastExpand(card) {
       const dayText = desc.getAttribute('data-day-text') || 'No data.';
       const nightText = desc.getAttribute('data-night-text') || 'No data.';
       
+      // Determine if this card is the very first card in the forecast list
+      const isTodayCard = (card === list.firstElementChild);
+      
+      // Smart contextual label assignments
+      const dayLabel = isTodayCard ? 'TODAY:' : `${fullDayName}:`;
+      const nightLabel = isTodayCard ? 'TONIGHT:' : `${fullDayName} NIGHT:`;
+      
       desc.innerHTML = `
-        <div class="forecast-period-title">TODAY:</div>
+        <div class="forecast-period-title">${dayLabel}</div>
         <div class="forecast-period-body">${dayText}</div>
-        <div class="forecast-period-title" style="margin-top: 8px;">TONIGHT:</div>
+        <div class="forecast-period-title" style="margin-top: 8px;">${nightLabel}</div>
         <div class="forecast-period-body">${nightText}</div>
       `;
     }
@@ -2106,17 +1954,6 @@ function toggleForecastExpand(card) {
   }
 }
 
-/*
-<img class="forecast-card-icon" src="https://cdn.jsdelivr.net/gh/Makin-Things/weather-icons@main/animated/${iconFile}.svg">
-          <div class="forecast-card-desc">${shortDesc}</div>
-          <div class="forecast-bottom-group">
-            <div class="forecast-card-precip">${precipStr}</div>
-            <div class="forecast-card-hi">${day.temperature}°</div>
-            <div class="forecast-card-lo">${night ? night.temperature + '°' : '--'}</div>
-          </div>
-        </div>`;
-        console.log('sorecast icon',iconFile);
-*/
 
 function getPrecipPeriod(detail) {
   if (!detail) return '';
@@ -2187,10 +2024,6 @@ async function fetchCLI() {
     const listRes  = await fetch('https://api.weather.gov/products/types/CLI/locations/CID');
     const listJson = await listRes.json();
     const latestId = listJson['@graph']?.[0]?.['@id'];
-    //console.log('Latest CLI product ID:', latestId);
-    //console.log('CLI Product List:', listJson['@graph']);
-    //console.log('###################################')
-    //console.log('List', listJson);
     if (!latestId) throw new Error('No CLI products found');
     const res  = await fetch(latestId);
     const json = await res.json();
@@ -2201,7 +2034,6 @@ async function fetchCLI() {
     const pcpMatch = text.match(/^\s*(?:TODAY|YESTERDAY)\s+([\d\.T]+)\s+([\d\.T]+)\s+(\d{4})\s+([\d\.T]+)/im);
     //const pcpMTDMatch = text.match(/MONTH TO DATE\s+([\d\.T]+)\s+([\d\.T]+)\s+(-?[\d\.T]+)/i);
     const pcpYTDMatch = text.match(/SINCE JAN 1\s+([\d\.T]+)\s+([\d\.T]+)\s+(-?[\d\.T]+)/i);
-    //console.log('CLI Match for Precipitation:', pcpYTDMatch);
     const dateMatch = text.match(/CEDAR RAPIDS.*?(\b(?:JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)\s+\d{1,2}\s+\d{4})/i)
                    || text.match(/((?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)[A-Z]*\s+\d{1,2}\s+\d{4})/i);
 
@@ -2215,7 +2047,6 @@ async function fetchCLI() {
     document.getElementById('cli-pcp-ytd').textContent = pcpYTDMatch ? pcpYTDMatch[1] + '"' : '--"';
     document.getElementById('cli-pcp-ytd-dep').textContent = pcpYTDMatch ? pcpYTDMatch[3] + '"' : '--"';
 
-    //console.log('CLI Product Text:', pcpMatch);
 
     if (pcpYTDMatch) {
       const ytdObs = pcpYTDMatch[1];
@@ -2574,9 +2405,6 @@ async function fetchMoon() {
     //moonWaxing = curPhase.includes('waxing') || curPhase === 'full moon';
     moonWaxing = curPhase.includes('waxing');
 
-    //console.log('Moon rise:', moonriseDate, 'set:', moonsetDate, 'phase:', moonPhase, 'waxing:', moonWaxing);
-    //console.log('Moon rise:', moonriseDate, 'set:', moonsetDate, 'phase:', moonPhase, 'waxing:', moonWaxing, 'curphase:', dataToday.curphase);
-
   } catch(e) {
     console.error('Moon fetch error:', e);
   }
@@ -2890,7 +2718,6 @@ function parseSPC(text) {
     //{data.push({ pres, temp, dew });}
   }
 
-  //console.log("Parsed levels:", data.length);
   return data;
 }
 
@@ -2962,7 +2789,6 @@ function computeMLParcelPath(data) {
   const meanE   = meanW * sfcP / (0.622 + meanW);
   const meanTd  = 243.5 * Math.log(meanE / 6.112) / (17.67 - Math.log(meanE / 6.112));
 
-  //console.log('ML parcel: meanT=', meanT_sfc.toFixed(1), 'meanTd=', meanTd.toFixed(1), 'sfcP=', sfcP);
 
   // Now lift this mean parcel exactly like the surface parcel
   // Reuse the same LCL and lifting functions from computeParcelPath
@@ -3106,7 +2932,6 @@ function computeMUParcelPath(data) {
   return { parcelPath, P_LCL, T_LCL: T_LCL - 273.15, sfcTemp };
 }
 
-//console.log('Wx Station Temperature:', WxTemp);
 function computeParcelPath(data) {
   // Find true surface — highest pressure level with valid temp+dew
   const sfc = data
@@ -3136,10 +2961,8 @@ function computeParcelPath(data) {
     sfcP = sfc.pres;
   */
   if (parcelMode === 'WX') {
-    //console.log('Current Wx Station temp (ºF):', WxTemp, 'Dew Point (ºF):', WxDew);
     WxTempC = Math.round((WxTemp-32) * 5/9);
     WxDewC  = Math.round((WxDew-32)  * 5/9);
-    //console.log('Converted Wx Station temp (ºC):', WxTempC, 'Converted Wx Station dew (ºC):', WxDewC);
 
     parcelType = 'WX';
     // --- Surface-based using station temp ---
@@ -3685,7 +3508,6 @@ function plotSkewT(data) {
           }));
 
           // ---- Calculate CAPE from cape segments ----
-          //console.log('capeSegments count:', capeSegments.length, 'parcelType:', parcelType);
           // ---- Calculate CAPE from cape segments ----
           let CAPE = 0;
           for (const seg of capeSegments) {
@@ -4014,10 +3836,8 @@ async function fetchSPCSoundingFor(station, overrideHour) {
   else if (utcH >= 19) hour = '18';
   else if (utcH >= 12) hour = '12';
   else hour = '00';
-  //console.log(`Fetching ${hour}z sounding for ${station} (current UTC hour: ${utcH})`);
 
   const url = `https://www.spc.noaa.gov/exper/soundings/${yy}${mm}${dd}${hour}_OBS/${station}.txt`;
-  //console.log(`URL:`, url);
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${station}`);
   const text = await res.text();
@@ -4570,7 +4390,6 @@ async function switchSPCLayer(btn) {
     buildLegend([], false);
   }
 }
-//console.log('LAT:',LAT,'LON:',LON);
 // ---- One-time map init (called when SPC panel first becomes visible) ----
 async function initSPCMap() {
   if (spcMapReady) {
@@ -4842,8 +4661,6 @@ function parseBUFKIT(text) {
     // If all blocks are in the future, fall back to the earliest
     if (best.dt > nowUTC) best = blocks[0];
   }
-  //console.log('Selected BUFKIT block time:', best.dt.toISOString().replace('T', ' ').slice(0,16), 'UTC');
-  //console.log('Selected BUFKIT Block Time:', best.dt.toISOString().replace('T', ' ').slice(11,13), 'UTC');
   // Determine line range: from best.lineIdx to next block's lineIdx (or end of file)
   const startIdx = best.lineIdx;
   const nextBlock = blocks.find(b => b.lineIdx > startIdx);
@@ -4907,7 +4724,6 @@ function parseBUFKIT(text) {
 
 function setParcelMode(mode) {
   parcelMode = mode;
-  //console.log('Parcel mode set to:', parcelMode);
   updateParcelButtons();
 
   // re-draw Skew-T using current data
