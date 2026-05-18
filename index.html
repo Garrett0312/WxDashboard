@@ -1374,7 +1374,7 @@ async function fetchAmbient() {
     document.getElementById('ticker').dataset.wx = wxContent;
     updateTicker();
 
-    document.getElementById('last-updated').textContent = 'AWx: ' + new Date().toLocaleTimeString();
+    document.getElementById('last-updated').textContent = `AWx ${LAT}/${LON}: ` + new Date().toLocaleTimeString();
   } catch(e) {
     document.getElementById('wx-loading').textContent = 'Station error: ' + e.message;
     console.error('Ambient Weather:', e);
