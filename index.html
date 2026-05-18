@@ -257,7 +257,7 @@
     background: var(--panel2);
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 2px 4px;
+    padding: 2px 2px;
     min-width: 0;
     overflow: hidden;
     position: relative;
@@ -336,10 +336,11 @@
     grid-column: 1;
     grid-row: 3;
     margin-top: 0;
+    margin-left: 2px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    text-align: center;
+    text-align: end;
     width: 100%;
   }
 
@@ -1575,49 +1576,50 @@ const probabilityRank = {
 };
 const weatherTypes = [
   {
-    match: /Showers?/i,
+    match: /\bShowers\s+And\s+Thunderstorms\b/i,
+    short: "T'SHWRS"
+  },
+  {
+    match: /\bThunderstorms?\b/i,
+    short: "T'STORMS"
+  },
+  {
+    match: /\bShowers?\b/i,
     short: 'SHWRS'
   },
   {
-    match: /Thunderstorms?/i,
-    short: "T'STORMS"
-  },
-  //{
-  //  match: /Showers And Thunderstorms?/i,
-  //  short: "T'SHWRS"
-  //},
-  {
-    match: /Rain/i,
+    match: /\bRain\b/i,
     short: 'RAIN'
   },
   {
-    match: /Snow/i,
+    match: /\bSnow\b/i,
     short: 'SNOW'
   }
 ];
 const skyConditions = [
   {
-    match: /Mostly Sunny/i,
+    match: /\bMostly\s+Sunny\b/i,
     short: 'M SUNNY'
   },
   {
-    match: /Partly Sunny/i,
+    match: /\bPartly\s+Sunny\b/i,
     short: 'P SUNNY'
   },
   {
-    match: /Mostly Cloudy/i,
+    match: /\bMostly\s+Cloudy\b/i,
     short: 'M CLOUDY'
   },
   {
-    match: /Partly Cloudy/i,
+    match: /\bPartly\s+Cloudy\b/i,
     short: 'P CLOUDY'
   },
   {
-    match: /Sunny/i,
+    // Pure conditions MUST go last
+    match: /\bSunny\b/i,
     short: 'SUNNY'
   },
   {
-    match: /Cloudy/i,
+    match: /\bCloudy\b/i,
     short: 'CLOUDY'
   }
 ];
@@ -1644,23 +1646,23 @@ function compactForecast(text) {
   // ------------------------
 
   let weather = '';
-
-  weatherTypes.forEach(type => {
+  for (const type of weatherTypes) {
     if (type.match.test(text)) {
       weather = type.short;
+      break; // Found our most specific match, stop checking!
     }
-  });
+  }
   // ------------------------
   // Find dominant sky condition
   // ------------------------
 
   let sky = '';
-
-  skyConditions.forEach(cond => {
+  for (const cond of skyConditions) {
     if (cond.match.test(text)) {
       sky = cond.short;
+      break; // Found our most specific match, stop checking!
     }
-  });
+  }
 
   // ------------------------
   // Convert probability wording
