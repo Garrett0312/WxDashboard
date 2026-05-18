@@ -633,6 +633,8 @@
     font-family: 'IBM Plex Mono', monospace;
     font-size: 11px;
     color: var(--accent);
+    cursor: pointer;
+    user-select: none;
   }
 
   #parcel-controls button {
@@ -1167,6 +1169,21 @@
 </div>
 
 <script>
+
+const CLOUD_SVG_PATHS = {
+  // REVISED: Cirrus Uncinus with distinct upward-curving hooks on the right-hand tips
+  'Ci': "M 0.1,0.7 C 0.2,0.65 0.3,0.65 0.4,0.55 C 0.42,0.42 0.48,0.22 0.5,0.2 M 0.25,0.8 C 0.4,0.75 0.5,0.7 0.62,0.52 C 0.65,0.4 0.72,0.18 0.75,0.1 M 0.5,0.85 C 0.6,0.8 0.68,0.72 0.76,0.6 C 0.78,0.48 0.84,0.32 0.86,0.25",
+  
+  // (Keep Cs, Ac, As, Cb, Cu, St, Sc exactly as they are)
+  'Cs': "M 0,0.3 L 1,0.3 L 1,0.5 L 0,0.5 Z M 0,0.6 L 1,0.6 L 1,0.65 L 0,0.65 Z",
+  'Ac': "M 0.1,0.4 C 0.12,0.3 0.15,0.3 0.17,0.4 C 0.19,0.5 0.22,0.5 0.24,0.4 M 0.3,0.4 C 0.32,0.3 0.35,0.3 0.37,0.4 M 0.5,0.4 C 0.52,0.3 0.55,0.3 0.57,0.4 M 0.7,0.4 C 0.72,0.3 0.75,0.3 0.77,0.4 M 0.2,0.6 C 0.22,0.5 0.25,0.5 0.27,0.6 M 0.4,0.6 C 0.42,0.5 0.45,0.5 0.47,0.6 M 0.6,0.6 C 0.62,0.5 0.65,0.5 0.67,0.6",
+  'As': "M 0,0.2 L 1,0.2 L 1,0.8 L 0,0.8 Z",
+  'Cb': "M 0.1,0.9 C 0.1,0.6 0.3,0.6 0.3,0.4 C 0.3,0.2 0.1,0.2 0.1,0.1 L 0.9,0.1 C 0.7,0.2 0.5,0.2 0.5,0.4 C 0.5,0.6 0.7,0.6 0.7,0.9 Z",
+  'Cu': "M 0.15,0.85 L 0.85,0.85 C 0.88,0.8 0.87,0.72 0.83,0.68 C 0.86,0.6 0.82,0.52 0.76,0.54 C 0.78,0.42 0.7,0.35 0.62,0.38 C 0.65,0.22 0.52,0.12 0.45,0.18 C 0.38,0.12 0.28,0.25 0.32,0.38 C 0.25,0.36 0.18,0.45 0.22,0.55 C 0.15,0.52 0.11,0.62 0.14,0.7 C 0.1,0.74 0.11,0.82 0.15,0.85 Z",
+  'St': "M 0,0.1 L 1,0.1 L 1,0.9 L 0,0.9 Z",
+  'Sc': "M 0,0.85 C 0.1,0.55 0.25,0.55 0.35,0.7 C 0.45,0.45 0.6,0.45 0.7,0.65 C 0.8,0.5 0.95,0.5 1,0.85 Z"
+};
+
 function getAmbientKeys() {
   const apiKey = localStorage.getItem('AW_API_KEY');
   const appKey = localStorage.getItem('AW_APP_KEY');
@@ -1298,6 +1315,7 @@ function initWithLocation(lat, lon) {
   //console.log('Current Location:',LAT, LON);
 }
 
+let showClouds = true;
 
 //const TEST_NOW = new Date('2026-03-20T18:27:00'); // SET TO e.g. new Date('2026-03-20T14:00:00') to test, null = live
 const TEST_NOW = null;
@@ -1582,10 +1600,6 @@ const weatherTypes = [
   {
     match: /\bThunderstorms?\b/i,
     short: "T'STORMS"
-  },
-  {
-    match: /\bShowers?\b/i,
-    short: 'SHWRS'
   },
   {
     match: /\bRain\b/i,
@@ -3059,13 +3073,21 @@ function computeParcelPath(data) {
 }
 
 function estimateCloudLayers(data) {
-  // Filter to levels with valid height, temp, dew
-  const levels = data
-    .filter(d => d.hght != null && !isNaN(d.hght) &&
-                 !isNaN(d.temp) && !isNaN(d.dew))
-    .sort((a, b) => a.hght - b.hght); // bottom to top
+  // Fallback: If hght doesn't exist, generate a mock height based on log-pressure so the derivative math doesn't break
+  const processedData = data.map((d, idx) => {
+    let h = d.hght;
+    if (h == null || isNaN(h)) {
+      // Standard hypsometric approximation: height proportional to log(1000/p)
+      h = 8000 * Math.log(1013.25 / (d.pres || 1000));
+    }
+    return { ...d, hght: h };
+  });
 
-  if (levels.length < 3) return [];
+  // Filter to levels with valid temp, dew, and pressure
+  const levels = processedData
+    .filter(d => d.pres != null && !isNaN(d.pres) && !isNaN(d.temp) && !isNaN(d.dew))
+    .sort((a, b) => a.hght - b.hght); // bottom to top
+  if (levels.length < 3) return { shapes: [], layers: [] };
 
   // Compute RH at each level from T and Td (Magnus formula)
   function calcRH(T, Td) {
@@ -3217,17 +3239,65 @@ function estimateCloudLayers(data) {
 
   //return shapes;
   return { shapes, layers };
-}
+/*
+  // -----------------------------------------------------------------
+  // OPTIMIZATION LATER: FILTER & DE-CONGEST OVERLAPPING CLOUD LABELS
+  // -----------------------------------------------------------------
+  
+  // 1. Filter out razor-thin micro-layers that mess up text spacing
+  // (Remember: higher pressure = lower altitude, so pBase - pTop = depth in mb)
+  let filteredLayers = layers.filter(layer => {
+    const thickness = layer.pBase - layer.pTop; 
+    return thickness >= 20; // Only allow layers thicker than 20 mb to keep a label
+  });
 
+  // 2. Proximity Merge: Combine identical cloud-types that are practically touching
+  const optimizedLayers = [];
+  
+  // Sort layers from surface upward (highest pressure to lowest pressure)
+  filteredLayers.sort((a, b) => b.pBase - a.pBase);
+
+  filteredLayers.forEach(layer => {
+    if (optimizedLayers.length === 0) {
+      optimizedLayers.push(layer);
+      return;
+    }
+
+    const lastLayer = optimizedLayers[optimizedLayers.length - 1];
+    
+    // Calculate the gap distance between the top of the last layer and the bottom of this layer
+    const pressureGap = lastLayer.pTop - layer.pBase; 
+
+    // If layers are within 35 mb of each other, merge them down to a single label placement
+    if (pressureGap <= 35) {
+      // Expand the existing layer boundary bounds to encompass both
+      lastLayer.pTop = Math.min(lastLayer.pTop, layer.pTop);
+      lastLayer.pMid = (lastLayer.pBase + lastLayer.pTop) / 2;
+      
+      // Inherit the maximum cloud cover density value
+      lastLayer.cover = Math.max(lastLayer.cover, layer.cover);
+      
+      // Retain the deepest moisture minimum depression point
+      if (layer.minDepression < lastLayer.minDepression) {
+        lastLayer.minDepression = layer.minDepression;
+        lastLayer.minDepressionT = layer.minDepressionT;
+      }
+    } else {
+      // The gap is wide enough to be distinct; treat it as an independent text anchor
+      optimizedLayers.push(layer);
+    }
+  });
+
+  // Swap out old array tracking with our de-congested results
+  return { shapes, layers: optimizedLayers };*/
+}
 
 function plotSkewT(data) {
   const pressure = data.map(d => d.pres); // hPa
   const temp = data.map(d => d.temp);     // °C
   const dew = data.map(d => d.dew);       // °C
-  //const cloudShapes = estimateCloudLayers(data);
-  // When WX mode is active, replace sub-LCL sounding levels with the
-  // parcel's dry adiabat (T) and constant mixing-ratio line (Td) so that
-  // low-level cumulus cloud base is anchored to the wx station surface values.
+
+  // Adjust low-level environment data if using custom station profiles
   function wxAdjustedData(data, P_LCL) {
     if (parcelMode !== 'WX' || WxTempC == null || WxDewC == null) return data;
 
@@ -3235,18 +3305,13 @@ function plotSkewT(data) {
     const sfcT  = WxTempC + 273.15;   // K
     const sfcTd = WxDewC  + 273.15;   // K
 
-    // Surface mixing ratio (g/kg) — held constant through the sub-LCL layer
     const e_sfc = 6.112 * Math.exp(17.67 * WxDewC / (WxDewC + 243.5));
     const r_sfc = 0.622 * e_sfc / (sfcP - e_sfc); // kg/kg
 
     return data.map(d => {
-      if (d.pres <= P_LCL) return d;  // at/above LCL — use real sounding
+      if (d.pres <= P_LCL) return d; 
 
-      // Dry adiabat temperature at this pressure level
       const T_dry = sfcT * Math.pow(d.pres / sfcP, 0.2854) - 273.15;
-
-      // Dewpoint from constant mixing ratio:
-      // e = r * P / (0.622 + r), then invert Magnus formula
       const e_p  = r_sfc * d.pres / (0.622 + r_sfc);
       const Td_p = 243.5 * Math.log(e_p / 6.112) / (17.67 - Math.log(e_p / 6.112));
 
@@ -3256,22 +3321,19 @@ function plotSkewT(data) {
 
   const parcelResult = getParcelPath(data);
   const P_LCL_wx    = parcelResult?.P_LCL ?? 0;
-  //const cloudShapes = estimateCloudLayers(wxAdjustedData(data, P_LCL_wx));
+  
+  // Extract optimized, de-congested layers 
   const { shapes: cloudShapes, layers: cloudLayers } = estimateCloudLayers(wxAdjustedData(data, P_LCL_wx));
 
-  const P0 = 1000;            // Rotation point (1000 hPa)
-  const skewAngleDeg = 35;    // Skew angle from vertical
+  const P0 = 1000;            
+  const skewAngleDeg = 35;    
   const skewAngle = skewAngleDeg * Math.PI / 180;
-  const scaleFactor = 40;     // Adjust to make the skew visually strong
+  const scaleFactor = 40;     
 
-  // 1. Convert pressure to linear Y relative to 1000 hPa
   const Y_lin = pressure.map(p => Math.log(P0 / p));
-
-  // 2. Rotate temperature and dewpoint about 1000 hPa
   const skewTemp = temp.map((t, i) => t + Y_lin[i] * Math.tan(skewAngle) * scaleFactor);
   const skewDew  = dew.map((d, i) => d + Y_lin[i] * Math.tan(skewAngle) * scaleFactor);
 
-  // 3. Create traces
   const traceTemp = {
     x: skewTemp,
     y: pressure,
@@ -3288,7 +3350,6 @@ function plotSkewT(data) {
     name: 'Dewpoint'
   };
 
-  // Frost point trace — only plotted where dew < 0°C (frost point is defined & > dew point)
   const frostLevels = data.filter(d => d.frost !== null && d.frost !== undefined);
   const frostPres   = frostLevels.map(d => d.pres);
   const frostSkew   = frostLevels.map(d => {
@@ -3303,23 +3364,13 @@ function plotSkewT(data) {
     name: 'Frost Point'
   } : null;
 
-  // Optional: plot a test trace to see rotation
-  const traceTest = {
-    x: skewTemp,
-    y: pressure,
-    mode: 'lines',
-    line: { color: 'orange', dash: 'dot' },
-    name: 'Test'
-  };
-
-  // 4. Generate skewed isotherms
-  const pMin = 100; // hPa
+  const pMin = 100; 
   const pMax = 1050;
   const isotherms = [];
   for (let t = -100; t <= 40; t += 10) {
     isotherms.push({
       type: 'line',
-      x0: t, // bottom at 1000 hPa
+      x0: t, 
       y0: pMax,
       x1: t + Math.log(P0 / pMin) * Math.tan(skewAngle) * scaleFactor,
       y1: pMin,
@@ -3327,282 +3378,307 @@ function plotSkewT(data) {
     });
   }
 
-
-  
-  // 5. Compute parcel path
-  //const parcelResult = computeParcelPath(data);
-  //let parcelTraces = [];
-  //let capeShapes   = [];
-  // Try surface parcel first, fall back to mixed layer parcel
-  //let parcelResult = computeParcelPath(data); //← was modified to use current Wx Station temp/dew instead of SPC surface level, but keep original as fallback if that fails
-  //let parcelResult = getParcelPath(data);
+  let parcelTraces = [];
   const activeParcelType = parcelType;
-  //let parcelType   = 'SB';
+  let CAPE = 0; // Global reference placeholder for layout tracking
 
-  /*
+  // Cloud type classification rule matrix
+  function classifyCloudType(layer, currentCAPE, P_LCL) {
+    const p    = layer.pMid;
+    const dep  = layer.minDepression;
+    const cov  = layer.cover;
+
+    const isHigh = p < 400;
+    const isMid  = p >= 400 && p < 650;
+    const isLow  = p >= 650;
+
+    const nearLCL      = P_LCL && layer.pBase >= P_LCL * 0.85;
+    const isConvective = (nearLCL && currentCAPE > 200) || (isLow && currentCAPE > 500);
+
+    if (isHigh) {
+      if (cov >= 0.60) return 'Cs';
+      return 'Ci';                  
+    }
+    if (isMid) {
+      if (cov >= 0.80) return 'As';   
+      return 'Ac';                  
+    }
+    if (isConvective) {
+      return currentCAPE > 1000 ? 'Cb' : 'Cu'; 
+    }
+    if (cov >= 0.80 && dep <= 2) return 'St';  
+    return 'Sc';                                   
+  }
+
   if (parcelResult) {
-    const sbInvalid = parcelResult.parcelPath.some(pt => {
-      if (pt.pres < 500) return false;
+    const { parcelPath } = parcelResult;
+
+    const parcelInvalid = parcelPath.some(pt => {
+      if (pt.pres < 500) return false; 
       const env = data.reduce((closest, d) =>
         Math.abs(d.pres - pt.pres) < Math.abs(closest.pres - pt.pres) ? d : closest
       );
       return !isNaN(env.dew) && pt.temp < env.dew;
     });
-    if (sbInvalid) {
-      parcelResult = null;
+
+    let capeEl = document.getElementById('cape-readout');
+    if (!capeEl) {
+      capeEl = document.createElement('div');
+      capeEl.id = 'cape-readout';
+      document.getElementById('skewt').appendChild(capeEl);
     }
+    capeEl.style.cssText = `
+      position: absolute; bottom: 150px; right: 8px; z-index: 20;
+      font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+      text-align: right; pointer-events: none; line-height: 1.6;
+    `;
+    
+    capeEl.innerHTML = `<span style="color:var(--muted);font-size:9px;letter-spacing:1px;">${activeParcelType} CAPE</span><br>
+      <span style="color:var(--muted);font-size:16px;font-weight:500;">0</span>
+      <span style="color:var(--muted);font-size:9px;">J/kg</span>`;
+
+    if (!parcelInvalid) {
+      const parcelSkew = parcelPath.map(pt => {
+        const y_lin = Math.log(P0 / pt.pres);
+        return pt.temp + y_lin * Math.tan(skewAngle) * scaleFactor;
+      });
+      const parcelPres = parcelPath.map(pt => pt.pres);
+
+      const traceParcel = {
+        x: parcelSkew,
+        y: parcelPres,
+        mode: 'lines',
+        line: { color: 'yellow', width: 1.5, dash: 'dot' },
+        name: activeParcelType === 'SB' ? 'SB Parcel' : (activeParcelType === 'WX' ? 'SB_Wx Parcel' : 'ML Parcel')
+      };
+
+      const capeSegments = [];
+      let inCape = false;
+      let currentSeg = { parcelX: [], envX: [], Y: [] };
+
+      for (let i = 0; i < parcelPath.length; i++) {
+        const P      = parcelPath[i].pres;
+        const y_lin  = Math.log(P0 / P);
+        const skewOff = y_lin * Math.tan(skewAngle) * scaleFactor;
+
+        const env = data.reduce((closest, d) =>
+          Math.abs(d.pres - P) < Math.abs(closest.pres - P) ? d : closest
+        );
+
+        const skewEnvT    = env.temp + skewOff;
+        const skewParcelT = parcelSkew[i];
+
+        const aboveLCL   = P <= parcelResult.P_LCL;
+        const isPositive = skewParcelT > skewEnvT && aboveLCL;
+
+        if (isPositive) {
+          if (!inCape) {
+            inCape = true;
+            currentSeg = { parcelX: [], envX: [], Y: [] };
+          }
+          currentSeg.parcelX.push(skewParcelT);
+          currentSeg.envX.push(skewEnvT);
+          currentSeg.Y.push(P);
+        } else {
+          if (inCape) {
+            inCape = false;
+            capeSegments.push({ ...currentSeg });
+          }
+        }
+      }
+      if (inCape) capeSegments.push({ ...currentSeg });
+
+      const capeTraces = capeSegments.map(seg => ({
+        x: [...seg.parcelX, ...seg.envX.slice().reverse()],
+        y: [...seg.Y,       ...seg.Y.slice().reverse()],
+        fill: 'toself',
+        fillcolor: 'rgba(255, 220, 0, 0.15)',
+        line: { width: 0 },
+        mode: 'lines',
+        showlegend: false
+      }));
+
+      CAPE = 0; // Overwrite outer variable scope
+      for (const seg of capeSegments) {
+        for (let i = 0; i < seg.Y.length - 1; i++) {
+          const P1  = seg.Y[i];
+          const P2  = seg.Y[i + 1];
+
+          const skewOff1 = Math.log(P0 / P1) * Math.tan(skewAngle) * scaleFactor;
+          const skewOff2 = Math.log(P0 / P2) * Math.tan(skewAngle) * scaleFactor;
+
+          const tParcel1 = seg.parcelX[i]     - skewOff1;
+          const tParcel2 = seg.parcelX[i + 1] - skewOff2;
+          const tEnv1    = seg.envX[i]        - skewOff1;
+          const tEnv2    = seg.envX[i + 1]    - skewOff2;
+
+          const TvP1 = tParcel1 + 273.15;
+          const TvP2 = tParcel2 + 273.15;
+          const TvE1 = tEnv1    + 273.15;
+          const TvE2 = tEnv2    + 273.15;
+
+          const b1 = 9.81 * (TvP1 - TvE1) / TvE1;
+          const b2 = 9.81 * (TvP2 - TvE2) / TvE2;
+          const bAvg = (b1 + b2) / 2;
+
+          const TvAvg = (TvP1 + TvP2) / 2;
+          const dz    = (287.05 * TvAvg / 9.81) * Math.log(P1 / P2);
+
+          CAPE += bAvg * dz;
+        }
+      }
+      CAPE = Math.max(0, Math.round(CAPE));
+
+      const capeColor = CAPE > 2500 ? '#ff4444'
+                      : CAPE > 1000 ? '#ffaa00'
+                      : CAPE > 500  ? '#ffd43b'
+                      : CAPE > 0    ? '#80e0a0'
+                      : 'var(--muted)';
+                      
+      capeEl.innerHTML = `<span style="color:var(--muted);font-size:9px;letter-spacing:1px;">${activeParcelType} CAPE</span><br>
+        <span style="color:${capeColor};font-size:16px;font-weight:500;">${CAPE}</span>
+        <span style="color:var(--muted);font-size:9px;">J/kg</span>`;
+
+      parcelTraces = [...capeTraces, traceParcel];
+
+      const labelPoint = parcelPath.reduce((a, b) => a.pres > b.pres ? a : b);
+      const labelSkewX = labelPoint.temp + Math.log(P0 / labelPoint.pres) * Math.tan(skewAngle) * scaleFactor;
+      parcelTraces.push({
+        x: [labelSkewX + 1.5],
+        y: [labelPoint.pres],
+        mode: 'text',
+        text: [activeParcelType + ' — ' + sfcTemp + '°F'],
+        textposition: 'middle right',
+        textfont: { color: 'rgba(255,220,0,0.7)', size: 9, family: 'IBM Plex Mono, monospace' },
+        showlegend: false,
+      });
+    } 
   }
-  if (!parcelResult) {
-    parcelResult = computeMLParcelPath(data);
-    //parcelType   = 'ML';
-    //.log('SB parcel invalid — using ML parcel');
-  }
-  */
 
-  let parcelTraces = [];
-  let CAPE = 0;
+  // Add this near the top of plotSkewT
+  const buildScallopedSegment = (points, billowSize, forceLeftPush) => {
+    let segmentPath = "";
+    for (let i = 0; i < points.length - 1; i++) {
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const dy = p2.y - p1.y; 
+      const dx = p2.x - p1.x;
+      const len = Math.sqrt(dx * dx + (dy / 200) * (dy / 200));
 
-  // ---- Cloud type classification ----
-  function classifyCloudType(layer, CAPE, P_LCL) {
-    const p    = layer.pMid;
-    const dep  = layer.minDepression;
-    const cov  = layer.cover;
+      let nx = len > 0 ? -(dy / 200) / len : 0;
+      let ny = len > 0 ? dx / len : 0;
 
-    // Altitude tier
-    const isHigh = p < 400;
-    const isMid  = p >= 400 && p < 650;
-    const isLow  = p >= 650;
+      if (forceLeftPush) {
+        if (nx > 0) { nx = -nx; ny = -ny; }
+      } else {
+        if (nx < 0) { nx = -nx; ny = -ny; }
+      }
 
-    // Convective flag: near LCL with any CAPE, OR low-level layer with significant CAPE
-    const nearLCL      = P_LCL && layer.pBase >= P_LCL * 0.85;
-    const isConvective = (nearLCL && CAPE > 200) || (isLow && CAPE > 500);
+      const cp1x = p1.x + nx * billowSize;
+      const cp1y = p1.y + ny * billowSize * 200;
+      const cp2x = p2.x + nx * billowSize;
+      const cp2y = p2.y + ny * billowSize * 200;
 
-    if (isHigh) {
-      if (cov >= 0.80) return 'Cs';   // Cirrostratus
-      if (cov >= 0.60) return 'Cs';
-      return 'Ci';                     // Cirrus
+      segmentPath += ` C ${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`;
     }
-    if (isMid) {
-      if (cov >= 0.80) return 'As';   // Altostratus
-      return 'Ac';                     // Altocumulus
-    }
-    // Low
-    if (isConvective) {
-      return CAPE > 1000 ? 'Cb' : 'Cu'; // Cumulonimbus vs Cumulus
-    }
-    if (cov >= 0.80 && dep <= 2) return 'St';  // Stratus — high cover, very moist
-    return 'Sc';                               // Stratocumulus — default low
+    return segmentPath;
+  };
+  // -----------------------------------------------------------------
+  // DE-CONGEST & FILTER LABELS (Type-Aware Proximity Merge)
+  // -----------------------------------------------------------------
+  
+  function getTier(p) {
+    if (p < 400) return 'high';
+    if (p >= 400 && p < 650) return 'mid';
+    return 'low';
   }
 
-  if (parcelResult) {
-    const { parcelPath } = parcelResult;
-    const P0 = 1000;
-    const skewAngle   = 35 * Math.PI / 180;
-    const scaleFactor = 40;
+  // 1. Drop micro-noise layers thinner than 3mb
+  let filteredLayers = cloudLayers.filter(layer => {
+    const thickness = layer.pBase - layer.pTop;
+    return thickness >= 1; 
+  });
 
-    // Skew the parcel temps same way as environment
-    const parcelSkew = parcelPath.map(pt => {
-      const y_lin = Math.log(P0 / pt.pres);
-      return pt.temp + y_lin * Math.tan(skewAngle) * scaleFactor;
+  // 2. Proximity Merge: Group touching layers ONLY if they share a tier AND type
+  const optimizedLayers = [];
+  filteredLayers.sort((a, b) => b.pBase - a.pBase); // Sort surface upward
+
+  filteredLayers.forEach(layer => {
+    layer.pMid = Math.pow(10, (Math.log10(layer.pBase) + Math.log10(layer.pTop)) / 2);
+    
+    // Pre-classify this layer's cloud code using the current CAPE/LCL setup
+    layer.cloudType = classifyCloudType(layer, CAPE, P_LCL_wx);
+
+    if (optimizedLayers.length === 0) {
+      optimizedLayers.push(layer);
+      return;
+    }
+
+    const lastLayer = optimizedLayers[optimizedLayers.length - 1];
+    const pressureGap = lastLayer.pTop - layer.pBase; 
+
+    const currentTier = getTier(layer.pMid);
+    const lastTier = getTier(lastLayer.pMid);
+
+    // Tighten the pressure gap requirement for high-altitude decks to account for log scaling
+    const maxGap = (currentTier === 'high') ? 25 : 45;
+
+    // Only merge if they are close, in the same tier, AND resolve to the exact same cloud type!
+    if (pressureGap <= maxGap && currentTier === lastTier && layer.cloudType === lastLayer.cloudType) {
+      lastLayer.pTop = Math.min(lastLayer.pTop, layer.pTop);
+      lastLayer.pMid = Math.pow(10, (Math.log10(lastLayer.pBase) + Math.log10(lastLayer.pTop)) / 2);
+      lastLayer.cover = Math.max(lastLayer.cover, layer.cover);
+      if (layer.minDepression < lastLayer.minDepression) {
+        lastLayer.minDepression = layer.minDepression;
+        lastLayer.minDepressionT = layer.minDepressionT;
+      }
+      // Re-evaluate type just in case bounds shifting altered it
+      lastLayer.cloudType = classifyCloudType(lastLayer, CAPE, P_LCL_wx);
+    } else {
+      optimizedLayers.push(layer);
+    }
+  });
+
+  // =================================================================
+  // NEW FIX: CONSOLIDATE MULTIPLE Cb LAYERS FIRST (Safe mutation setup)
+  // =================================================================
+  const cbLayers = optimizedLayers.filter(l => l.cloudType === 'Cb');
+
+  if (cbLayers.length > 1) {
+    const masterBase = Math.max(...cbLayers.map(l => l.pBase));
+    const masterTop  = Math.min(...cbLayers.map(l => l.pTop));
+    
+    const mainCb = optimizedLayers.find(l => l.cloudType === 'Cb');
+    mainCb.pBase = masterBase;
+    mainCb.pTop = masterTop;
+    mainCb.pMid = Math.pow(10, (Math.log10(masterBase) + Math.log10(masterTop)) / 2);
+    
+    let foundFirst = false;
+    const uniqueLayers = optimizedLayers.filter(l => {
+      if (l.cloudType === 'Cb') {
+        if (!foundFirst) {
+          foundFirst = true;
+          return true; 
+        }
+        return false; 
+      }
+      return true; 
     });
 
+    // Mutate original array inline without re-assigning constant variable identification
+    optimizedLayers.length = 0;
+    optimizedLayers.push(...uniqueLayers);
+  }
 
-    const parcelPres = parcelPath.map(pt => pt.pres);
-
-    if (parcelResult) {
-        const { parcelPath } = parcelResult;
-
-        // Check if parcel ever goes colder than environment dewpoint
-      const parcelInvalid = parcelPath.some(pt => {
-          if (pt.pres < 500) return false; // only check below 500 hPa
-          const env = data.reduce((closest, d) =>
-            Math.abs(d.pres - pt.pres) < Math.abs(closest.pres - pt.pres) ? d : closest
-          );
-          return !isNaN(env.dew) && pt.temp < env.dew;
-        });
-
-        let capeEl = document.getElementById('cape-readout');
-
-        //if (capeEl) capeEl.innerHTML = '';
-        if (!capeEl) {
-          capeEl = document.createElement('div');
-          capeEl.id = 'cape-readout';
-          document.getElementById('skewt').appendChild(capeEl);
-        }
-        capeEl.style.cssText = `
-          position: absolute;
-          bottom: 150px;
-          right: 8px;
-          z-index: 20;
-          font-family: 'IBM Plex Mono', monospace;
-          font-size: 11px;
-          text-align: right;
-          pointer-events: none;
-          line-height: 1.6;
-        `;
-        capeEl.innerHTML = `<span style="color:var(--muted);font-size:9px;letter-spacing:1px;">${activeParcelType} CAPE</span><br>
-          <span style="color:var(--muted);font-size:16px;font-weight:500;">0</span>
-          <span style="color:var(--muted);font-size:9px;">J/kg</span>`;
-
-        if (!parcelInvalid) {
-          const P0 = 1000;
-          const skewAngle   = 35 * Math.PI / 180;
-          const scaleFactor = 40;
-
-          const parcelSkew = parcelPath.map(pt => {
-            const y_lin = Math.log(P0 / pt.pres);
-            return pt.temp + y_lin * Math.tan(skewAngle) * scaleFactor;
-          });
-          const parcelPres = parcelPath.map(pt => pt.pres);
-
-          const traceParcel = {
-            x: parcelSkew,
-            y: parcelPres,
-            mode: 'lines',
-            line: { color: 'yellow', width: 1.5, dash: 'dot' },
-            name: activeParcelType === 'SB' ? 'SB Parcel' : (activeParcelType === 'WX' ? 'SB_Wx Parcel' : 'ML Parcel')
-          };
-
-          const capeSegments = [];
-          let inCape = false;
-          let currentSeg = { parcelX: [], envX: [], Y: [] };
-
-          for (let i = 0; i < parcelPath.length; i++) {
-            const P      = parcelPath[i].pres;
-            const y_lin  = Math.log(P0 / P);
-            const skewOff = y_lin * Math.tan(skewAngle) * scaleFactor;
-
-            const env = data.reduce((closest, d) =>
-              Math.abs(d.pres - P) < Math.abs(closest.pres - P) ? d : closest
-            );
-
-            const skewEnvT    = env.temp + skewOff;
-            const skewParcelT = parcelSkew[i];
-
-            const aboveLCL   = P <= parcelResult.P_LCL;
-            const isPositive = skewParcelT > skewEnvT && aboveLCL;
-
-            if (isPositive) {
-              if (!inCape) {
-                inCape = true;
-                currentSeg = { parcelX: [], envX: [], Y: [] };
-              }
-              currentSeg.parcelX.push(skewParcelT);
-              currentSeg.envX.push(skewEnvT);
-              currentSeg.Y.push(P);
-            } else {
-              if (inCape) {
-                inCape = false;
-                capeSegments.push({ ...currentSeg });
-              }
-            }
-          }
-          if (inCape) capeSegments.push({ ...currentSeg });
-
-          const capeTraces = capeSegments.map(seg => ({
-            x: [...seg.parcelX, ...seg.envX.slice().reverse()],
-            y: [...seg.Y,       ...seg.Y.slice().reverse()],
-            fill: 'toself',
-            fillcolor: 'rgba(255, 220, 0, 0.15)',
-            line: { width: 0 },
-            mode: 'lines',
-            showlegend: false
-          }));
-
-          // ---- Calculate CAPE from cape segments ----
-          // ---- Calculate CAPE from cape segments ----
-          let CAPE = 0;
-          for (const seg of capeSegments) {
-            for (let i = 0; i < seg.Y.length - 1; i++) {
-              const P1  = seg.Y[i];
-              const P2  = seg.Y[i + 1];
-
-              // Un-skew parcel and env temps at each level
-              const skewOff1 = Math.log(P0 / P1) * Math.tan(skewAngle) * scaleFactor;
-              const skewOff2 = Math.log(P0 / P2) * Math.tan(skewAngle) * scaleFactor;
-
-              const tParcel1 = seg.parcelX[i]     - skewOff1;
-              const tParcel2 = seg.parcelX[i + 1] - skewOff2;
-              const tEnv1    = seg.envX[i]         - skewOff1;
-              const tEnv2    = seg.envX[i + 1]     - skewOff2;
-
-              // Convert to Kelvin
-              const TvP1 = tParcel1 + 273.15;
-              const TvP2 = tParcel2 + 273.15;
-              const TvE1 = tEnv1    + 273.15;
-              const TvE2 = tEnv2    + 273.15;
-
-              // Average buoyancy across layer
-              const b1 = 9.81 * (TvP1 - TvE1) / TvE1;
-              const b2 = 9.81 * (TvP2 - TvE2) / TvE2;
-              const bAvg = (b1 + b2) / 2;
-
-              // Layer thickness via hypsometric equation
-              const TvAvg = (TvP1 + TvP2) / 2;
-              const dz    = (287.05 * TvAvg / 9.81) * Math.log(P1 / P2);
-
-              CAPE += bAvg * dz;
-            }
-          }
-          CAPE = Math.max(0, Math.round(CAPE));
-
-          // ---- CAPE readout — bottom right of sounding panel ----
-          let capeEl = document.getElementById('cape-readout');
-          if (!capeEl) {
-            capeEl = document.createElement('div');
-            capeEl.id = 'cape-readout';
-            document.getElementById('skewt').appendChild(capeEl);
-          }
-          capeEl.style.cssText = `
-            position: absolute;
-            bottom: 150px;
-            right: 8px;
-            z-index: 20;
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 11px;
-            text-align: right;
-            pointer-events: none;
-            line-height: 1.6;
-          `;
-          const capeColor = CAPE > 2500 ? '#ff4444'
-                          : CAPE > 1000 ? '#ffaa00'
-                          : CAPE > 500  ? '#ffd43b'
-                          : CAPE > 0    ? '#80e0a0'
-                          : 'var(--muted)';
-          capeEl.innerHTML = `<span style="color:var(--muted);font-size:9px;letter-spacing:1px;">${activeParcelType} CAPE</span><br>
-            <span style="color:${capeColor};font-size:16px;font-weight:500;">${CAPE}</span>
-            <span style="color:var(--muted);font-size:9px;">J/kg</span>`;
-            
-
-          parcelTraces = [...capeTraces, traceParcel];
-
-          // Label at the bottom of the parcel path (highest pressure = lowest altitude)
-          const labelPoint = parcelPath.reduce((a, b) => a.pres > b.pres ? a : b);
-          const labelSkewX = labelPoint.temp + Math.log(P0 / labelPoint.pres) * Math.tan(skewAngle) * scaleFactor;
-          parcelTraces.push({
-            x: [labelSkewX + 1.5],
-            y: [labelPoint.pres],
-            mode: 'text',
-            text: [activeParcelType+ ' — ' + sfcTemp + '°F'],
-            textposition: 'middle right',
-            textfont: { color: 'rgba(255,220,0,0.7)', size: 9, family: 'IBM Plex Mono, monospace' },
-            showlegend: false,
-          });
-        } 
-      }
-    }
-
-    
-
-  // 6. Plot with Plotly
-  // Build cloud type label traces — one text point per layer, pinned to left edge
-  const cloudLabelTraces = cloudLayers.map(layer => {
-    const label = classifyCloudType(layer, CAPE, P_LCL_wx);
+  // =================================================================
+  // 3. MAP LABELS (Now fully synchronized with the consolidated list)
+  // =================================================================
+  const cloudLabelTraces = optimizedLayers.map(layer => {
     return {
-      x: [0.01],   // just inside left edge (paper coords won't work for scatter — use skewed x range)
+      x: [0.01],   
       y: [layer.pMid],
       mode: 'text',
-      text: [label],
+      text: [layer.cloudType], 
       textposition: 'middle right',
       textfont: { color: 'rgba(200,220,255,0.75)', size: 9, family: 'IBM Plex Mono, monospace' },
       xaxis: 'x',
@@ -3610,18 +3686,421 @@ function plotSkewT(data) {
     };
   });
 
-  // Convert paper x=0.01 to actual skewed x-axis value (left edge of plot range)
   const xMin = (Math.round((Math.min(...skewTemp, ...skewDew) - 10)/10)*10)+5;
   cloudLabelTraces.forEach(t => { t.x = [xMin + 1]; });
 
-  Plotly.newPlot('skewt', [traceTemp, traceDew, ...(traceFrost ? [traceFrost] : []), ...parcelTraces, ...cloudLabelTraces], {
+  const dynamicCloudShapes = [];
+
+  optimizedLayers.forEach(layer => {
+    const type = layer.cloudType;
+    const rawPath = CLOUD_SVG_PATHS[type];
+    
+    if (!rawPath) return;
+
+    const opacity = layer.cover >= 0.80 ? 0.35 : (layer.cover >= 0.60 ? 0.22 : 0.12);
+    
+    if (type === 'St' || type === 'As' || type === 'Cs') {
+      dynamicCloudShapes.push({
+        type: 'rect', xref: 'paper', yref: 'y',
+        x0: 0, x1: 1,
+        y0: layer.pTop,
+        y1: layer.pBase,
+        fillcolor: `rgba(240, 245, 255, ${opacity*0.8})`,
+        line: { width: type === 'Cs' ? 1 : 0, color: 'rgba(255,255,255,0.4)', dash: 'dot' }
+      });
+      return;
+    }
+
+    if (type === 'Cb') {
+      const dynamicLCL = parcelResult?.P_LCL ?? layer.pBase;
+
+      // 1. Find the raw thermodynamic top of the path (the absolute EL)
+      let rawEL = 150; 
+      if (parcelResult?.parcelPath && parcelResult.parcelPath.length > 0) {
+        const buoyantPressures = parcelResult.parcelPath.filter(pt => {
+          if (pt.pres > dynamicLCL) return false;
+          const env = data.reduce((closest, d) =>
+            Math.abs(d.pres - pt.pres) < Math.abs(closest.pres - pt.pres) ? d : closest
+          );
+          return pt.temp >= env.temp;
+        }).map(pt => pt.pres);
+
+        if (buoyantPressures.length > 0) {
+          rawEL = Math.min(...buoyantPressures);
+        } else {
+          rawEL = Math.min(...parcelResult.parcelPath.map(pt => pt.pres));
+        }
+      }
+      if (rawEL < 120) rawEL = 140;
+
+      // 2. CAP CHECK: Evaluate the inversion layer (LCL down to 700 hPa)
+      let maxCapDeficit = 0; 
+      let cappedTopPressure = null;
+
+      if (parcelResult?.parcelPath) {
+        parcelResult.parcelPath.forEach(pt => {
+          if (pt.pres <= dynamicLCL && pt.pres >= 700) {
+            const env = data.reduce((closest, d) =>
+              Math.abs(d.pres - pt.pres) < Math.abs(closest.pres - pt.pres) ? d : closest
+            );
+            
+            const deficit = env.temp - pt.temp; 
+            if (deficit > maxCapDeficit) {
+              maxCapDeficit = deficit;
+              cappedTopPressure = pt.pres; 
+            }
+          }
+        });
+      }
+
+      const isCapped = maxCapDeficit > 2.5; 
+
+      // 3. Set the final heights based on cap evaluation
+      let pBase = dynamicLCL;
+      let pAnvilTop = rawEL;
+      let renderAsAnvil = !isCapped;
+
+      if (isCapped) {
+        pAnvilTop = cappedTopPressure ?? (dynamicLCL - 100); 
+      }
+
+      const pAnvilBottom = pAnvilTop + 25;
+
+      // =================================================================
+      // RENDERING ENGINE
+      // =================================================================
+      if (renderAsAnvil) {
+        // --- UNCAPPED STORM: Draw your standard severe Cb Trunk, Anvil, & Flanking Cu ---
+        const centerX = 0.38;          
+        const baseHalfWidth = 0.28;     
+        const topHalfWidth  = 0.08;     
+        const anvilHalfWidth = 0.44;    
+        const topShiftX = -0.04;
+
+        // 1. Draw Flanking Cu Lines First (so they sit beautifully in the background/base layer)
+        const cuPath = "M 0.15,0.85 L 0.85,0.85 C 0.88,0.8 0.87,0.72 0.83,0.68 C 0.86,0.6 0.82,0.52 0.76,0.54 C 0.78,0.42 0.7,0.35 0.62,0.38 C 0.65,0.22 0.52,0.12 0.45,0.18 C 0.38,0.12 0.28,0.25 0.32,0.38 C 0.25,0.36 0.18,0.45 0.22,0.55 C 0.15,0.52 0.11,0.62 0.14,0.7 C 0.1,0.74 0.11,0.82 0.15,0.85 Z";
+
+        const flankingConfigs = [
+          { startX: centerX - baseHalfWidth - 0.05, width: 0.10, depth: 25, yScale: 6.1 }, 
+          { startX: centerX - baseHalfWidth + 0.01, width: 0.13, depth: 55, yScale: 6.3 }, 
+          { startX: centerX - 0.11,                 width: 0.11, depth: 35, yScale: 4.2 }, 
+          { startX: centerX + baseHalfWidth - 0.07, width: 0.15, depth: 45, yScale: 3.25 },
+          { startX: centerX + baseHalfWidth + 0.04, width: 0.11, depth: 28, yScale: 8.1 }, 
+          { startX: centerX + baseHalfWidth + 0.11, width: 0.08, depth: 20, yScale: 6.0 }  
+        ];
+
+        flankingConfigs.forEach(cfg => {
+          const tokens = cuPath.split(' ');
+          const transformedTokens = tokens.map(token => {
+            if (token.includes(',')) {
+              const coords = token.split(',');
+              const rawX = parseFloat(coords[0]);
+              const yNorm = parseFloat(coords[1]);
+
+              const shiftedX = cfg.startX + (rawX * cfg.width);
+              const adjustedYNorm = 0.85 - ((0.85 - yNorm) * cfg.yScale);
+              
+              const pCloudTop = pBase - cfg.depth;
+              const yPres = pCloudTop + (adjustedYNorm * cfg.depth);
+              
+              return `${shiftedX},${yPres}`;
+            }
+            return token;
+          });
+
+          dynamicCloudShapes.push({
+            type: 'path', xref: 'paper', yref: 'y', path: transformedTokens.join(' '),
+            fillcolor: `rgba(202, 212, 232, ${opacity * 0.85})`,
+            line: { color: 'rgba(160, 176, 202, 0.45)', width: 1.25 }
+          });
+        });
+
+        // 2. Build the main storm trunk points
+        const segments = 12;
+        let leftTrunkPoints = [];
+        let rightTrunkPoints = [];
+
+        for (let i = 0; i <= segments; i++) {
+          const pct = i / segments;
+          const currentP = pBase - (pct * (pBase - pAnvilBottom));
+
+          const leftBaseX = centerX - baseHalfWidth;
+          const leftTopX  = centerX - topHalfWidth + topShiftX;
+          const lx = leftTopX + (leftBaseX - leftTopX) * Math.pow(1 - pct, 3.5);
+
+          const rightBaseX = centerX + baseHalfWidth;
+          const rightTopX  = centerX + topHalfWidth + topShiftX;
+          let rx = rightTopX + (rightBaseX - rightTopX) * Math.pow(1 - pct, 1.8);
+          if (pct > 0.85) rx += (pct - 0.85) * 0.15; 
+
+          leftTrunkPoints.push({ x: lx, y: currentP });
+          rightTrunkPoints.push({ x: rx, y: currentP });
+        }
+
+        // Assemble Main Trunk Path
+        let masterTrunkPath = `M ${leftTrunkPoints[0].x},${leftTrunkPoints[0].y}`;
+        masterTrunkPath += buildScallopedSegment(leftTrunkPoints, 0.015, true);
+
+        const leftNeck = leftTrunkPoints[leftTrunkPoints.length - 1];
+        const rightNeck = rightTrunkPoints[rightTrunkPoints.length - 1];
+        const midNeckX = (leftNeck.x + rightNeck.x) / 2;
+
+        const pOvershootPeak = pAnvilTop - 15;
+        masterTrunkPath += ` C ${leftNeck.x},${pOvershootPeak + 6} ${midNeckX - 0.02},${pOvershootPeak} ${midNeckX},${pOvershootPeak}`;
+        masterTrunkPath += ` C ${midNeckX + 0.02},${pOvershootPeak} ${rightNeck.x},${pOvershootPeak + 6} ${rightNeck.x},${rightNeck.y}`;
+
+        const reversedRightPoints = rightTrunkPoints.slice().reverse();
+        masterTrunkPath += buildScallopedSegment(reversedRightPoints, 0.015, false);
+        masterTrunkPath += ' Z';
+
+        dynamicCloudShapes.push({
+          type: 'path', xref: 'paper', yref: 'y', path: masterTrunkPath,
+          fillcolor: `rgba(215, 222, 235, ${opacity * 0.95})`,
+          line: { color: 'rgba(165, 180, 205, 0.65)', width: 1.5 }
+        });
+
+        // Draw Anvil Top Shape
+        const anvilCenter = 0.45;
+        const anvilLeftX = anvilCenter - anvilHalfWidth;   
+        const anvilRightX = anvilCenter + anvilHalfWidth;  
+
+        let anvilPath = `M ${anvilLeftX},${pAnvilTop}`;
+        anvilPath += ` L ${anvilRightX},${pAnvilTop}`;
+        anvilPath += ` C ${anvilRightX + 0.02},${pAnvilTop} ${anvilRightX + 0.01},${pAnvilBottom} ${anvilRightX - 0.02},${pAnvilBottom}`;
+        anvilPath += ` L ${anvilLeftX + 0.02},${pAnvilBottom}`;
+        anvilPath += ` C ${anvilLeftX - 0.01},${pAnvilBottom} ${anvilLeftX - 0.02},${pAnvilTop} ${anvilLeftX},${pAnvilTop}`;
+        anvilPath += ' Z';
+
+        dynamicCloudShapes.push({
+          type: 'path', xref: 'paper', yref: 'y', path: anvilPath,
+          fillcolor: `rgba(235, 240, 250, ${opacity * 0.9})`,
+          line: { color: 'rgba(180, 195, 220, 0.6)', width: 1.25 }
+        });
+
+      } else {
+        // --- CAPPED STORM: Draw a distinct 4-Tower Congestus cluster with organic vertical stacking ---
+        const dynamicWidth = 0.22; 
+        const tcuPath = "M 0.15,0.85 L 0.85,0.85 C 0.89,0.78 0.88,0.68 0.82,0.62 C 0.87,0.52 0.81,0.40 0.72,0.42 C 0.74,0.28 0.64,0.18 0.54,0.22 C 0.57,0.04 0.41,-0.05 0.32,0.05 C 0.24,-0.05 0.12,0.08 0.16,0.22 C 0.08,0.20 0.01,0.32 0.05,0.44 C -0.02,0.52 0.00,0.65 0.06,0.72 C 0.02,0.78 0.05,0.85 0.15,0.85 Z";
+
+        const tcuClusters = [
+          { startX: 0.16, scale: 0.85, yOffset: 20 },  
+          { startX: 0.38, scale: 1.30, yOffset: -100 }, 
+          { startX: 0.27, scale: 1.10, yOffset: -50 },  
+          { startX: 0.56, scale: 0.80, yOffset: 10 }   
+        ];
+
+        tcuClusters.forEach(cluster => {
+          const tokens = tcuPath.split(' ');
+          const transformedTokens = tokens.map(token => {
+            if (token.includes(',')) {
+              const coords = token.split(',');
+              const rawX = parseFloat(coords[0]);
+              const yNorm = parseFloat(coords[1]);
+
+              const shiftedX = cluster.startX + (rawX * dynamicWidth * cluster.scale);
+              
+              const effectiveTop = pAnvilTop + cluster.yOffset;
+              const yPres = effectiveTop + (yNorm * (pBase - effectiveTop));
+              
+              return `${shiftedX},${yPres}`;
+            }
+            return token;
+          });
+
+          dynamicCloudShapes.push({
+            type: 'path', xref: 'paper', yref: 'y', path: transformedTokens.join(' '),
+            fillcolor: `rgba(208, 218, 235, ${opacity * 0.88})`,
+            line: { color: 'rgba(155, 172, 200, 0.6)', width: 1.5 }
+          });
+        });
+      }
+
+      return;
+    }
+
+    // Isolated multi-tower handling specifically for Cumulus (Cu)
+    if (type === 'Cu') {
+      const layerThickness = layer.pBase - layer.pTop; 
+      const baseWidth = 0.13;
+      const nominalThickness = 100;
+      const dynamicWidth = Math.max(0.04, baseWidth * (layerThickness / nominalThickness));
+
+      const cuPath = "M 0.15,0.85 L 0.85,0.85 C 0.88,0.8 0.87,0.72 0.83,0.68 C 0.86,0.6 0.82,0.52 0.76,0.54 C 0.78,0.42 0.7,0.35 0.62,0.38 C 0.65,0.22 0.52,0.12 0.45,0.18 C 0.38,0.12 0.28,0.25 0.32,0.38 C 0.25,0.36 0.18,0.45 0.22,0.55 C 0.15,0.52 0.11,0.62 0.14,0.7 C 0.1,0.74 0.11,0.82 0.15,0.85 Z";
+
+      let seed = layer.pBase + 12.34;
+      function seededRandom() {
+        let x = Math.sin(seed++) * 10000;
+        return x - Math.floor(x);
+      }
+
+      const centerSeeds = [
+        0.12 + (seededRandom() * 0.08), 
+        0.22 + (seededRandom() * 0.06), 
+        0.48 + (seededRandom() * 0.12), 
+        0.70 + (seededRandom() * 0.05), 
+        0.76 + (seededRandom() * 0.06)  
+      ];
+
+      centerSeeds.forEach(startX => {
+        const sizeVariation = 0.65 + (seededRandom() * 0.7);
+        const cloudInstanceWidth = dynamicWidth * sizeVariation;
+
+        const tokens = cuPath.split(' ');
+        const transformedTokens = tokens.map(token => {
+          if (token.includes(',')) {
+            const coords = token.split(',');
+            const rawX = parseFloat(coords[0]);
+            const yNorm = parseFloat(coords[1]);
+
+            const shiftedX = startX + (rawX * cloudInstanceWidth);
+            const yPres   = layer.pTop + (yNorm * (layer.pBase - layer.pTop));
+            
+            return `${shiftedX},${yPres}`;
+          }
+          return token;
+        });
+
+        dynamicCloudShapes.push({
+          type: 'path',
+          xref: 'paper',
+          yref: 'y',
+          path: transformedTokens.join(' '),
+          fillcolor: `rgba(245, 250, 255, ${opacity * 0.65})`,
+          line: { color: 'rgba(255, 255, 255, 0.6)', width: 1.25 }
+        });
+      });
+      return; 
+    }
+
+    // Dense, repeating horizontal row handling for Stratocumulus (Sc)
+    if (type === 'Sc') {
+      const scPositions = [0.02, 0.16, 0.30, 0.44, 0.58, 0.72, 0.84];
+      const scWidth = 0.16; 
+
+      scPositions.forEach(startX => {
+        const tokens = rawPath.split(' ');
+        const transformedTokens = tokens.map(token => {
+          if (token.includes(',')) {
+            const coords = token.split(',');
+            const rawX = parseFloat(coords[0]);
+            const yNorm = parseFloat(coords[1]);
+
+            const shiftedX = startX + (rawX * scWidth);
+            const yPres   = layer.pTop + (yNorm * (layer.pBase - layer.pTop));
+            
+            return `${shiftedX},${yPres}`;
+          }
+          return token;
+        });
+
+        dynamicCloudShapes.push({
+          type: 'path',
+          xref: 'paper',
+          yref: 'y',
+          path: transformedTokens.join(' '),
+          fillcolor: `rgba(235, 242, 255, ${opacity * 0.65})`,
+          line: { color: 'rgba(255, 255, 255, 0.5)', width: 1 }
+        });
+      });
+      return; 
+    }
+
+    // High-Density Wind-Sheared Cirrus Uncinus (Mare's Tails)
+    if (type === 'Ci') {
+      const denseMaresTails = [
+        "M 0.05,0.85 C 0.18,0.82 0.30,0.70 0.38,0.40 C 0.40,0.25 0.44,0.08 0.48,0.02",
+        "M 0.22,0.90 C 0.35,0.85 0.46,0.72 0.54,0.45 C 0.56,0.30 0.62,0.12 0.65,0.05",
+        "M 0.42,0.80 C 0.52,0.75 0.62,0.60 0.70,0.30 C 0.72,0.15 0.76,0.03 0.80,0.00",
+        "M 0.60,0.75 C 0.70,0.70 0.78,0.58 0.84,0.35 C 0.86,0.22 0.90,0.10 0.93,0.04",
+        "M 0.75,0.85 C 0.82,0.82 0.88,0.72 0.92,0.50 C 0.94,0.38 0.97,0.25 0.99,0.18"
+      ].join(" ");
+      
+      const cloudWidth = 0.80; 
+      const startX     = 0.10; 
+
+      const tokens = denseMaresTails.split(' ');
+      const transformedTokens = tokens.map(token => {
+        if (token.includes(',')) {
+          const coords = token.split(',');
+          const rawX = parseFloat(coords[0]); 
+          const yNorm = parseFloat(coords[1]);
+          
+          const shiftedX = startX + (rawX * cloudWidth);
+          const yPres    = layer.pTop + (yNorm * (layer.pBase - layer.pTop));
+          
+          return `${shiftedX},${yPres}`;
+        }
+        return token;
+      });
+
+      dynamicCloudShapes.push({
+        type: 'path',
+        xref: 'paper',
+        yref: 'y',
+        path: transformedTokens.join(' '),
+        fillcolor: 'transparent', 
+        line: { color: `rgba(225, 238, 255, ${opacity + 0.4})`, width: 1.25 }
+      });
+      return;
+    }
+
+    // Default Fallback Parser with Proportional Aspect-Ratio Scaling
+    let cloudWidth  = 0.75; 
+    let startX      = 0.20; 
+
+    if (type === 'Ac') {
+      cloudWidth = 0.80; 
+      startX     = 0.15; 
+    } else if (type === 'Sc') {
+      cloudWidth = 0.75; 
+      startX     = 0.125;
+    } else if (type === 'Ci') {
+      cloudWidth = 0.80; 
+      startX     = 0.10;  
+    } 
+
+    const tokens = rawPath.split(' ');
+    const transformedTokens = tokens.map(token => {
+      if (token.includes(',')) {
+        const coords = token.split(',');
+        const rawX = parseFloat(coords[0]); 
+        const yNorm = parseFloat(coords[1]);
+        
+        const shiftedX = startX + (rawX * cloudWidth);
+        const yPres    = layer.pTop + (yNorm * (layer.pBase - layer.pTop));
+        
+        return `${shiftedX},${yPres}`;
+      }
+      return token;
+    });
+
+    dynamicCloudShapes.push({
+      type: 'path',
+      xref: 'paper',
+      yref: 'y',
+      path: transformedTokens.join(' '),
+      fillcolor: type === 'Ci' ? 'transparent' : `rgba(245, 250, 255, ${opacity * 0.6})`,
+      line: {
+        color: type === 'Ci' ? `rgba(200, 220, 255, ${opacity + 0.2})` : 'rgba(255, 255, 255, 0.55)',
+        width: type === 'Ac' ? 1.25 : 1
+      }
+    });
+  });
+
+  Plotly.newPlot('skewt', [
+    traceTemp, 
+    traceDew, 
+    ...(traceFrost ? [traceFrost] : []), 
+    ...parcelTraces, 
+    // Conditional addition of Text Labels:
+    ...(showClouds ? cloudLabelTraces : [])
+  ], {
     margin: { l: 40, r: 10, t: 10, b: 30 },
     paper_bgcolor: '#111720',
     plot_bgcolor: '#111720',
     font: { color: '#e8f0f8', size: 10 },
     xaxis: {
       title: 'Temperature (°C)',
-      //range: [-50, 30], // expand to fit skewed lines
       range: [
         (Math.round((Math.min(...skewTemp, ...skewDew) - 10)/10)*10)+5,
         (Math.round((Math.max(...skewTemp) + 10)/10)*10)+10
@@ -3630,28 +4109,23 @@ function plotSkewT(data) {
       zeroline: false
     },
     yaxis: {
-        title: 'Pressure (hPa)',
-        type: 'log',
-        range: [Math.log10(pMax), Math.log10(pMin)],
-        autorange: false,
-        showgrid: true,
-        gridcolor: 'rgba(255,255,255,0.1)'
-      },
-      /*shapes: isotherms,*/
-      shapes: [...cloudShapes, ...isotherms],
-      showlegend: false
+      title: 'Pressure (hPa)',
+      type: 'log',
+      range: [Math.log10(pMax), Math.log10(pMin)],
+      autorange: false,
+      showgrid: true,
+      gridcolor: 'rgba(255,255,255,0.1)'
     },
-    { displayModeBar: false,
-      responsive: false,
-      staticPlot: true
-     });
+    // Conditional addition of SVG Vector Profiles:
+    shapes: [...(showClouds ? dynamicCloudShapes : []), ...isotherms],
+    showlegend: false
+  },
+  { displayModeBar: false, responsive: false, staticPlot: false });
 
-  // Draw hodograph overlay after Plotly renders
   setTimeout(() => {
-    drawHodograph(data);
+    //drawHodograph(data);
   });
 }
-
 function drawHodograph(data) {
   const existing = document.getElementById('hodograph-overlay');
   if (existing) existing.remove();
@@ -3873,7 +4347,7 @@ async function loadSounding() {
       result = await tryStations('ILX', 'DVN');
       } else {
       try {
-        result = await tryStations('DVN', 'ILX');
+        result = await tryStations('DVN', 'ILX'); //I CHANGED DVN TO SGF
         } catch (e) {
         console.warn('18z DVN+ILX both failed, falling back to 12z ILX');
         result = await tryStations('ILX', 'DVN', '12');
@@ -3944,6 +4418,8 @@ async function loadSounding() {
     btn.addEventListener('click', () => switchSPCLayer(btn));
   });*/
 }
+
+document.getElementById('sounding-station').addEventListener('click', toggleCloudLayer);
 
 function getParcelPath(data) {
   if (parcelMode === 'ML') return computeMLParcelPath(data);
@@ -4741,6 +5217,22 @@ function updateParcelButtons() {
     btn.style.background = btn.textContent.includes(parcelMode) ? '#4a90e2': '';
     btn.style.color = btn.textContent.includes(parcelMode) ? '#fff' : '';
   });
+}
+
+function toggleCloudLayer() {
+  showClouds = !showClouds;
+  updateCloudButton();
+  
+  // Re-plot the sounding with the new state if currentSoundingData is available
+  if (typeof currentSoundingData !== 'undefined' && currentSoundingData) {
+    plotSkewT(currentSoundingData);
+  }
+}
+
+function updateCloudButton() {
+  const el = document.getElementById('sounding-station');
+  if (!el) return;
+  el.style.opacity = showClouds ? '1' : '0.4';
 }
 
 /*
