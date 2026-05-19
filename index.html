@@ -2977,16 +2977,6 @@ function computeParcelPath(data) {
   //let sfcTd = null;
   let sfcT, sfcTd, sfcP;
 
-  /*if (parcelMode === 'ML') {
-    return computeMLParcelPath(data);
-    /*
-    // --- Mixed Layer (lowest ~100 mb avg) ---
-    const mlLayer = data.filter(d => d.pres >= sfc.pres - 100);
-
-    sfcT = mlLayer.reduce((sum, d) => sum + d.temp, 0) / mlLayer.length;
-    sfcTd = mlLayer.reduce((sum, d) => sum + d.dew, 0) / mlLayer.length;
-    sfcP = sfc.pres;
-  */
   if (parcelMode === 'WX') {
     WxTempC = Math.round((WxTemp-32) * 5/9);
     WxDewC  = Math.round((WxDew-32)  * 5/9);
@@ -3095,15 +3085,29 @@ function estimateCloudLayers(data) {
   });
 
   // Filter to levels with valid temp, dew, and pressure
+  //const levels = processedData
+  //  .filter(d => d.pres != null && !isNaN(d.pres) && !isNaN(d.temp) && !isNaN(d.dew))
+  //const levels = processedData
+    //.filter(d => d.pres != null && !isNaN(d.pres) && !isNaN(d.temp) && d.dew != null && !isNaN(d.dew))
   const levels = processedData
-    .filter(d => d.pres != null && !isNaN(d.pres) && !isNaN(d.temp) && !isNaN(d.dew))
+    .filter(d => d.pres != null && !isNaN(d.pres) && !isNaN(d.temp) && 
+      (d.dew != null || d.temp < -30)  // allow null dew only if cold enough for ice cloud
+    )
     .sort((a, b) => a.hght - b.hght); // bottom to top
   if (levels.length < 3) return { shapes: [], layers: [] };
 
-  // Compute RH at each level from T and Td (Magnus formula)
-  function calcRH(T, Td) {
+  function calcRH(T, Td, pres) {
+    // If dewpoint is missing but temp is in cirrus territory, 
+    // assume a conservative ice-supersaturated RH based on temperature
+    if (Td === null || isNaN(Td)) {
+      if (pres < 250) return 0;   // don't guess above 250mb
+      if (T < -50) return 55;       // very high cirrus, assume modest RH
+      if (T < -40) return 45;       // classic Ci regime
+      if (T < -30) return 38;       // marginal ice cloud territory
+      return 0;                     // too warm to assume anything without dew
+    }
     return 100 * Math.exp(17.67 * Td / (Td + 243.5)) /
-                 Math.exp(17.67 * T  / (T  + 243.5));
+                Math.exp(17.67 * T  / (T  + 243.5));
   }
 
   // Arabey diagram — max dewpoint depression threshold for each cloud cover zone
@@ -3131,7 +3135,7 @@ function estimateCloudLayers(data) {
   const n = levels.length;
   const T2  = new Array(n).fill(0); // T''
   const RH2 = new Array(n).fill(0); // RH''
-  const RH  = levels.map(d => calcRH(d.temp, d.dew));
+  const RH  = levels.map(d => calcRH(d.temp, d.dew, d.pres));
 
   for (let i = 1; i < n - 1; i++) {
     const dz1 = levels[i].hght   - levels[i-1].hght;
@@ -3160,14 +3164,13 @@ function estimateCloudLayers(data) {
 
   for (let i = 1; i < n - 1; i++) {
     const isCloud = T2[i] >= 0 && RH2[i] <= 0;
-
     if (isCloud && !inLayer) {
       inLayer = true;
       layerStart = levels[i];
-      minDepression  = levels[i].temp - levels[i].dew;
+      minDepression  = levels[i].dew != null ? levels[i].temp - levels[i].dew : 5;
       minDepressionT = levels[i].temp;
     } else if (isCloud && inLayer) {
-      const dep = levels[i].temp - levels[i].dew;
+      const dep = levels[i].dew != null ? levels[i].temp - levels[i].dew : 5;
       if (dep < minDepression) {
         minDepression  = dep;
         minDepressionT = levels[i].temp;
@@ -3177,35 +3180,26 @@ function estimateCloudLayers(data) {
       const layerEnd = levels[i];
       const result   = arabeyCloudCover(minDepressionT, minDepression);
       if (result) {
-        /*
-        shapes.push({
-          type: 'rect',
-          xref: 'paper',   // span full width of plot
-          yref: 'y',
-          x0: 0, x1: 1,
-          y0: layerEnd.pres,
-          y1: layerStart.pres,
-          fillcolor: `rgba(255,255,255,${result.opacity})`,
-          line: { width: 0 }
-        });*/
-        shapes.push({
-          type: 'rect',
-          xref: 'paper',
-          yref: 'y',
-          x0: 0, x1: 1,
-          y0: layerEnd.pres,
-          y1: layerStart.pres,
-          fillcolor: `rgba(255,255,255,${result.opacity})`,
-          line: { width: 0 }
-        });
-        layers.push({
-          pBase: layerStart.pres,  // bottom of layer (highest pressure)
-          pTop:  layerEnd.pres,    // top of layer
-          pMid:  (layerStart.pres + layerEnd.pres) / 2,
-          cover: result.cover,
-          minDepression,
-          minDepressionT
-        });
+        if (result && minDepressionT > -45) {
+          shapes.push({
+            type: 'rect',
+            xref: 'paper',
+            yref: 'y',
+            x0: 0, x1: 1,
+            y0: layerEnd.pres,
+            y1: layerStart.pres,
+            fillcolor: `rgba(255,255,255,${result.opacity})`,
+            line: { width: 0 }
+          });
+          layers.push({
+            pBase: layerStart.pres,  // bottom of layer (highest pressure)
+            pTop:  layerEnd.pres,    // top of layer
+            pMid:  (layerStart.pres + layerEnd.pres) / 2,
+            cover: result.cover,
+            minDepression,
+            minDepressionT
+          });
+        }
       }
       minDepression  = Infinity;
       minDepressionT = null;
@@ -3217,96 +3211,37 @@ function estimateCloudLayers(data) {
     const layerEnd = levels[n - 1];
     const result   = arabeyCloudCover(minDepressionT, minDepression);
     if (result) {
-      /*shapes.push({
-        type: 'rect',
-        xref: 'paper',
-        yref: 'y',
-        x0: 0, x1: 1,
-        y0: layerEnd.pres,
-        y1: layerStart.pres,
-        fillcolor: `rgba(255,255,255,${result.opacity})`,
-        line: { width: 0 }
-      });*/
-      shapes.push({
-        type: 'rect',
-        xref: 'paper',
-        yref: 'y',
-        x0: 0, x1: 1,
-        y0: layerEnd.pres,
-        y1: layerStart.pres,
-        fillcolor: `rgba(255,255,255,${result.opacity})`,
-        line: { width: 0 }
-      });
-      layers.push({
-        pBase: layerStart.pres,
-        pTop:  layerEnd.pres,
-        pMid:  (layerStart.pres + layerEnd.pres) / 2,
-        cover: result.cover,
-        minDepression,
-        minDepressionT
-      });
+      if (result && minDepressionT > -45) {
+        shapes.push({
+          type: 'rect',
+          xref: 'paper',
+          yref: 'y',
+          x0: 0, x1: 1,
+          y0: layerEnd.pres,
+          y1: layerStart.pres,
+          fillcolor: `rgba(255,255,255,${result.opacity})`,
+          line: { width: 0 }
+        });
+        layers.push({
+          pBase: layerStart.pres,
+          pTop:  layerEnd.pres,
+          pMid:  (layerStart.pres + layerEnd.pres) / 2,
+          cover: result.cover,
+          minDepression,
+          minDepressionT
+        });
+      }
     }
   }
 
   //return shapes;
   return { shapes, layers };
-/*
-  // -----------------------------------------------------------------
-  // OPTIMIZATION LATER: FILTER & DE-CONGEST OVERLAPPING CLOUD LABELS
-  // -----------------------------------------------------------------
-  
-  // 1. Filter out razor-thin micro-layers that mess up text spacing
-  // (Remember: higher pressure = lower altitude, so pBase - pTop = depth in mb)
-  let filteredLayers = layers.filter(layer => {
-    const thickness = layer.pBase - layer.pTop; 
-    return thickness >= 20; // Only allow layers thicker than 20 mb to keep a label
-  });
-
-  // 2. Proximity Merge: Combine identical cloud-types that are practically touching
-  const optimizedLayers = [];
-  
-  // Sort layers from surface upward (highest pressure to lowest pressure)
-  filteredLayers.sort((a, b) => b.pBase - a.pBase);
-
-  filteredLayers.forEach(layer => {
-    if (optimizedLayers.length === 0) {
-      optimizedLayers.push(layer);
-      return;
-    }
-
-    const lastLayer = optimizedLayers[optimizedLayers.length - 1];
-    
-    // Calculate the gap distance between the top of the last layer and the bottom of this layer
-    const pressureGap = lastLayer.pTop - layer.pBase; 
-
-    // If layers are within 35 mb of each other, merge them down to a single label placement
-    if (pressureGap <= 35) {
-      // Expand the existing layer boundary bounds to encompass both
-      lastLayer.pTop = Math.min(lastLayer.pTop, layer.pTop);
-      lastLayer.pMid = (lastLayer.pBase + lastLayer.pTop) / 2;
-      
-      // Inherit the maximum cloud cover density value
-      lastLayer.cover = Math.max(lastLayer.cover, layer.cover);
-      
-      // Retain the deepest moisture minimum depression point
-      if (layer.minDepression < lastLayer.minDepression) {
-        lastLayer.minDepression = layer.minDepression;
-        lastLayer.minDepressionT = layer.minDepressionT;
-      }
-    } else {
-      // The gap is wide enough to be distinct; treat it as an independent text anchor
-      optimizedLayers.push(layer);
-    }
-  });
-
-  // Swap out old array tracking with our de-congested results
-  return { shapes, layers: optimizedLayers };*/
 }
 
 function plotSkewT(data) {
-  const pressure = data.map(d => d.pres); // hPa
-  const temp = data.map(d => d.temp);     // °C
-  const dew = data.map(d => d.dew);       // °C
+  const pressure = data.map(d => d.pres ?? NaN); // hPa
+  const temp = data.map(d => d.temp ?? NaN);     // °C
+  const dew = data.map(d => d.dew ?? NaN);       // °C
 
   // Adjust low-level environment data if using custom station profiles
   function wxAdjustedData(data, P_LCL) {
@@ -3342,8 +3277,8 @@ function plotSkewT(data) {
   const scaleFactor = 40;     
 
   const Y_lin = pressure.map(p => Math.log(P0 / p));
-  const skewTemp = temp.map((t, i) => t + Y_lin[i] * Math.tan(skewAngle) * scaleFactor);
-  const skewDew  = dew.map((d, i) => d + Y_lin[i] * Math.tan(skewAngle) * scaleFactor);
+  const skewTemp = temp.map((t, i) => isNaN(t) ? NaN : t + Y_lin[i] * Math.tan(skewAngle) * scaleFactor);
+  const skewDew = dew.map((d, i) => isNaN(d) ? NaN : d + Y_lin[i] * Math.tan(skewAngle) * scaleFactor);
 
   const traceTemp = {
     x: skewTemp,
@@ -3607,7 +3542,7 @@ function plotSkewT(data) {
   // 1. Drop micro-noise layers thinner than 3mb
   let filteredLayers = cloudLayers.filter(layer => {
     const thickness = layer.pBase - layer.pTop;
-    return thickness >= 1; 
+    return thickness >= 2; 
   });
 
   // 2. Proximity Merge: Group touching layers ONLY if they share a tier AND type
@@ -3697,8 +3632,51 @@ function plotSkewT(data) {
     };
   });
 
-  const xMin = (Math.round((Math.min(...skewTemp, ...skewDew) - 10)/10)*10)+5;
+  const xMin = (Math.round((Math.min(...skewTemp.filter(v => !isNaN(v)), ...skewDew.filter(v => !isNaN(v))) - 10)/10)*10)+5;
   cloudLabelTraces.forEach(t => { t.x = [xMin + 1]; });
+
+  // ---- HEIGHT MARKERS ----
+  const heightTargets = [
+    { km: 0,  label: 'SFC' },
+    { km: 1,  label: '1km' },
+    { km: 3,  label: '3km' },
+    { km: 6,  label: '6km' },
+    { km: 9,  label: '9km' },
+    { km: 12, label: '12km' },
+    { km: 15, label: '15km' },
+  ];
+
+  const heightShapes = [];
+  const heightLabels = [];
+
+  for (const target of heightTargets) {
+    const targetM = target.km * 1000;
+    const validLevels = data.filter(d => d.hght != null && !isNaN(d.hght));
+    if (!validLevels.length) continue;
+
+    const closest = validLevels.reduce((a, b) =>
+      Math.abs(b.hght - targetM) < Math.abs(a.hght - targetM) ? b : a
+    );
+
+    heightShapes.push({
+      type: 'line',
+      xref: 'paper', yref: 'y',
+      x0: 0, x1: 0.065,
+      y0: closest.pres, y1: closest.pres,
+      line: { color: 'rgba(210, 200, 170,0.4)', width: 1, dash: 'solid' }
+    });
+
+    heightLabels.push({
+      x: 0.07,
+      y: Math.log10(closest.pres),
+      xref: 'paper', yref: 'y',
+      text: target.label,
+      showarrow: false,
+      font: { color: 'rgba(210, 200, 170,0.7)', size: 8, family: 'IBM Plex Mono, monospace' },
+      xanchor: 'left',
+      yanchor: 'middle',
+    });
+  }
 
   const dynamicCloudShapes = [];
 
@@ -3710,7 +3688,7 @@ function plotSkewT(data) {
 
     const opacity = layer.cover >= 0.80 ? 0.35 : (layer.cover >= 0.60 ? 0.22 : 0.12);
     
-    if (type === 'St' || type === 'As' || type === 'Cs') {
+    /*if (type === 'St' || type === 'As' || type === 'Cs') {
       dynamicCloudShapes.push({
         type: 'rect', xref: 'paper', yref: 'y',
         x0: 0, x1: 1,
@@ -3719,6 +3697,42 @@ function plotSkewT(data) {
         fillcolor: `rgba(240, 245, 255, ${opacity*0.8})`,
         line: { width: type === 'Cs' ? 1 : 0, color: 'rgba(255,255,255,0.4)', dash: 'dot' }
       });
+      return;
+    }*/
+    if (type === 'St' || type === 'As' || type === 'Cs') {
+      const thickness = layer.pBase - layer.pTop;
+      const edgeSize = thickness * 0.25; // top and bottom 25% are the feathered edges
+
+      // Bottom feathered edge
+      dynamicCloudShapes.push({
+        type: 'rect', xref: 'paper', yref: 'y',
+        x0: 0, x1: 1,
+        y0: layer.pBase,
+        y1: layer.pBase - edgeSize,
+        fillcolor: `rgba(240, 245, 255, ${opacity * 0.3})`,
+        line: { width: 0 }
+      });
+
+      // Dense core
+      dynamicCloudShapes.push({
+        type: 'rect', xref: 'paper', yref: 'y',
+        x0: 0, x1: 1,
+        y0: layer.pBase - edgeSize,
+        y1: layer.pTop  + edgeSize,
+        fillcolor: `rgba(240, 245, 255, ${opacity * 0.9})`,
+        line: { width: 0 }
+      });
+
+      // Top feathered edge
+      dynamicCloudShapes.push({
+        type: 'rect', xref: 'paper', yref: 'y',
+        x0: 0, x1: 1,
+        y0: layer.pTop + edgeSize,
+        y1: layer.pTop,
+        fillcolor: `rgba(240, 245, 255, ${opacity * 0.3})`,
+        line: { width: 0 }
+      });
+
       return;
     }
 
@@ -3997,7 +4011,14 @@ function plotSkewT(data) {
             const yNorm = parseFloat(coords[1]);
 
             const shiftedX = startX + (rawX * scWidth);
-            const yPres   = layer.pTop + (yNorm * (layer.pBase - layer.pTop));
+            //const yPres   = layer.pTop + (yNorm * (layer.pBase - layer.pTop));
+            const minThickness = 40;
+            const actualThickness = layer.pBase - layer.pTop;
+            const renderThickness = Math.max(actualThickness, minThickness);
+            const pMid = (layer.pBase + layer.pTop) / 2;
+            const renderBase = pMid + renderThickness / 2;
+            const renderTop  = pMid - renderThickness / 2;
+            const yPres = renderTop + (yNorm * (renderBase - renderTop));
             
             return `${shiftedX},${yPres}`;
           }
@@ -4018,12 +4039,25 @@ function plotSkewT(data) {
 
     // High-Density Wind-Sheared Cirrus Uncinus (Mare's Tails)
     if (type === 'Ci') {
-      const denseMaresTails = [
+      /*const denseMaresTails = [
         "M 0.05,0.85 C 0.18,0.82 0.30,0.70 0.38,0.40 C 0.40,0.25 0.44,0.08 0.48,0.02",
         "M 0.22,0.90 C 0.35,0.85 0.46,0.72 0.54,0.45 C 0.56,0.30 0.62,0.12 0.65,0.05",
         "M 0.42,0.80 C 0.52,0.75 0.62,0.60 0.70,0.30 C 0.72,0.15 0.76,0.03 0.80,0.00",
         "M 0.60,0.75 C 0.70,0.70 0.78,0.58 0.84,0.35 C 0.86,0.22 0.90,0.10 0.93,0.04",
         "M 0.75,0.85 C 0.82,0.82 0.88,0.72 0.92,0.50 C 0.94,0.38 0.97,0.25 0.99,0.18"
+      ].join(" ");*/
+      const denseMaresTails = [
+        // Left - tall pronounced hook
+        "M 0.02,0.55 C 0.10,0.50 0.20,0.45 0.30,0.42 C 0.38,0.40 0.44,0.34 0.46,0.24 C 0.47,0.17 0.45,0.10 0.43,0.06",
+
+        // Center-left - slightly offset start, tall hook
+        "M 0.20,0.70 C 0.29,0.64 0.40,0.58 0.51,0.55 C 0.60,0.52 0.67,0.45 0.69,0.34 C 0.70,0.26 0.68,0.18 0.66,0.13",
+
+        // Center-right - starts mid width, pronounced upward curl
+        "M 0.42,0.60 C 0.52,0.54 0.63,0.49 0.73,0.46 C 0.81,0.43 0.87,0.36 0.89,0.25 C 0.90,0.17 0.88,0.09 0.86,0.05",
+
+        // Right - shorter body, tight tall hook
+        "M 0.60,0.75 C 0.68,0.69 0.77,0.63 0.86,0.60 C 0.92,0.57 0.96,0.50 0.97,0.40 C 0.98,0.32 0.96,0.24 0.94,0.19",
       ].join(" ");
       
       const cloudWidth = 0.80; 
@@ -4037,7 +4071,14 @@ function plotSkewT(data) {
           const yNorm = parseFloat(coords[1]);
           
           const shiftedX = startX + (rawX * cloudWidth);
-          const yPres    = layer.pTop + (yNorm * (layer.pBase - layer.pTop));
+          //const yPres    = layer.pTop + (yNorm * (layer.pBase - layer.pTop));
+          const minThickness = 60;
+          const actualThickness = layer.pBase - layer.pTop;
+          const renderThickness = Math.max(actualThickness, minThickness);
+          const pMid = (layer.pBase + layer.pTop) / 2;
+          const renderBase = pMid + renderThickness / 2;
+          const renderTop  = pMid - renderThickness / 2;
+          const yPres = renderTop + (yNorm * (renderBase - renderTop));
           
           return `${shiftedX},${yPres}`;
         }
@@ -4050,7 +4091,7 @@ function plotSkewT(data) {
         yref: 'y',
         path: transformedTokens.join(' '),
         fillcolor: 'transparent', 
-        line: { color: `rgba(225, 238, 255, ${opacity + 0.4})`, width: 1.25 }
+        line: { color: `rgba(225, 238, 255, ${opacity + 0.5})`, width: 2.0 }
       });
       return;
     }
@@ -4113,8 +4154,8 @@ function plotSkewT(data) {
     xaxis: {
       title: 'Temperature (°C)',
       range: [
-        (Math.round((Math.min(...skewTemp, ...skewDew) - 10)/10)*10)+5,
-        (Math.round((Math.max(...skewTemp) + 10)/10)*10)+10
+        (Math.round((Math.min(...skewTemp.filter(v => !isNaN(v)), ...skewDew.filter(v => !isNaN(v))) - 10)/10)*10)+5,
+        (Math.round((Math.max(...skewTemp.filter(v => !isNaN(v))) + 10)/10)*10)+10
       ],
       showgrid: false,
       zeroline: false
@@ -4128,8 +4169,9 @@ function plotSkewT(data) {
       gridcolor: 'rgba(255,255,255,0.1)'
     },
     // Conditional addition of SVG Vector Profiles:
-    shapes: [...(showClouds ? dynamicCloudShapes : []), ...isotherms],
-    showlegend: false
+    shapes: [...(showClouds ? dynamicCloudShapes : []), ...isotherms, ...heightShapes],
+    showlegend: false,
+    annotations: heightLabels,
   },
   { displayModeBar: false, responsive: false, staticPlot: false });
 
@@ -4137,6 +4179,8 @@ function plotSkewT(data) {
     drawHodograph(data);
   });
 }
+
+
 function drawHodograph(data) {
   const existing = document.getElementById('hodograph-overlay');
   if (existing) existing.remove();
@@ -4151,11 +4195,14 @@ function drawHodograph(data) {
   function presToKm(p) {
     return 44.3308 * (1 - Math.pow(p / 1013.25, 0.190263));
   }
-
-  // Filter valid wind levels up to 12km
+  const MISSING = -9999;
   const levels = data.filter(d =>
+    d.wspd != null && d.wdir != null &&
     !isNaN(d.wspd) && !isNaN(d.wdir) &&
-    d.wspd >= 0 && d.pres > 0 &&
+    d.wspd >= 0 && d.wdir >= 0 &&
+    Math.abs(d.wspd - MISSING) > 1 &&
+    Math.abs(d.wdir - MISSING) > 1 &&
+    d.pres > 0 &&
     presToKm(d.pres) <= 12
   );
 
@@ -5048,7 +5095,7 @@ async function loadModelSounding() {
   let text = null;
   let usedHour = null;
   let BestTime = null;
-  const model = "HRRR"; // "HRRR" or "RAP" if you want to try that instead (but it's often unavailable for KCID)
+  const model = "RAP"; // "HRRR" or "RAP" if you want to try that instead (but it's often unavailable for KCID)
 
   for (const h of hoursToTry) {
     const hStr = String(h).padStart(2, '0');
