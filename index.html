@@ -2702,20 +2702,31 @@ function parseSPC(text) {
 
     if (parts.length < 6) continue;
 
-    const pres = parseFloat(parts[0]);
-    const hght = parseFloat(parts[1]);
-    const temp = parseFloat(parts[2]);
-    const dew  = parseFloat(parts[3]);
-    const wdir = parseFloat(parts[4]);
-    const wspd = parseFloat(parts[5]);
+    const pres    = parseFloat(parts[0]);
+    const rawHght = parseFloat(parts[1]);
+    const temp    = parseFloat(parts[2]);
+    const rawDew  = parseFloat(parts[3]);
+    const rawWdir = parseFloat(parts[4]);
+    const rawWspd = parseFloat(parts[5]);
 
-    // Filter out invalid/missing values
+    // Null out any -9999 sentinel or NaN values field-by-field
+    // so a bad sensor on one channel doesn't discard the whole level
+    const MISSING = -9999;
+    const clean = v => (!isNaN(v) && Math.abs(v - MISSING) > 1) ? v : null;
+
+    const hght = clean(rawHght);
+    const dew  = clean(rawDew);
+    const wdir = clean(rawWdir);
+    const wspd = clean(rawWspd);
+    
+    // Only discard the level if pressure or temp are unusable
     if (
       !isNaN(pres) &&
       !isNaN(temp) &&
-      !isNaN(dew) &&
       pres > 100 && pres < 1100 &&
-      temp > -100 && temp < 100
+      temp > -100 && temp < 100 &&
+      Math.abs(pres - MISSING) > 1 &&
+      Math.abs(temp - MISSING) > 1
     ) {
       // Frost point: solve Tf such that es_ice(Tf) = es_water(Td)
       // es_water (Magnus):  6.1078 * exp(17.2694 * Td / (Td + 237.3))
