@@ -1314,21 +1314,6 @@
 </div>
 
 <script>
-// Detect if the dashboard is running on a Smart TV, media device, or casting stick
-//const isTVMode = /SmartTV|Tizen|Web0S|NetCast|LGPlat|AppleTV|Roku|RokuId|HbbTV|CastVideo|Vizio/i.test(navigator.userAgent);
-//console.log(isTVMode);
-// 1. Check for known TV signatures in the user agent string
-const hasTvUserAgent = /SmartTV|Tizen|Web0S|NetCast|LGPlat|AppleTV|Roku|RokuId|HbbTV|CastVideo|Vizio|AFT|Nexus Player|DroidTV/i.test(navigator.userAgent);
-
-// 2. Check if the device lacks touch support but behaves like a generic desktop layout
-const looksLikeTvLayout = (!('ontouchstart' in window) && navigator.maxTouchPoints === 0 && window.screen.width >= 1280);
-
-// 3. COMBINED DETECTION SYSTEM
-// FORCE TRUE OVERRIDE: Since this file runs on your dedicated TV dashboard, 
-// you can just change this to "let isTVMode = true;" if the browser checks still fail!
-//let isTVMode = hasTvUserAgent || looksLikeTvLayout;
-let isTVMode = true;
-console.log(isTVMode);
 
 // Global states to maintain manual override persistence
 let manualStationOverride = null;
@@ -1744,7 +1729,7 @@ async function fetchAmbient() {
     updateTicker();
 
     //document.getElementById('last-updated').textContent = `${LAT}/${LON}: ` + new Date().toLocaleTimeString();
-    document.getElementById('last-updated').textContent = `${Number(LAT).toFixed(2)}/${Number(LON).toFixed(2)}: ` + new Date().toLocaleTimeString() + `${isTVMode}`;
+    document.getElementById('last-updated').textContent = `${Number(LAT).toFixed(2)}/${Number(LON).toFixed(2)}: ` + new Date().toLocaleTimeString();
   } catch(e) {
     document.getElementById('wx-loading').textContent = 'Station error: ' + e.message;
     console.error('Ambient Weather:', e);
