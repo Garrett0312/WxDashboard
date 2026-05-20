@@ -616,6 +616,38 @@
     position: relative;
     z-index: 10;
   }
+  .sounding-wrapper {
+    /* This makes the wrapper the anchor point for the button */
+    position: relative; 
+    width: 100%;
+    height: 100%;
+  }
+
+  #cloud-overlay-btn {
+    /* Positions the button in the lower left corner */
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    z-index: 100; /* Ensures it floats above the Plotly canvas */
+
+    /* UI Styling */
+    background-color: var(--panel);
+    color: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px 4px;
+    font-size: 12px; /* Adjusted for readability from a distance */
+    cursor: pointer;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.4);
+    transition: all 0.2s ease;
+  }
+
+  #cloud-overlay-btn:hover { /*, #cloud-overlay-btn:focus {*/
+    /* Mimics the blue glow effect used elsewhere in your dashboard */
+    box-shadow: 0 0 8px rgba(58,160,255,0.4);
+    background-color: var(--panel2);
+    outline: none;
+  }
   #sounding-img {
     /*transform: scale(1.26);
     transform-origin: left top;*/
@@ -862,6 +894,15 @@
     text-align: right;
     pointer-events: none;
     line-height: 1.5;
+  }
+  /* Hide default native browser datalist/dropdown arrows */
+  input::-webkit-calendar-picker-indicator {
+    display: none !important;
+    -webkit-appearance: none !important;
+  }
+
+  input::-moz-calendar-picker-indicator {
+    display: none !important;
   }
 
 </style>
@@ -1147,14 +1188,116 @@
 </div>
 
 <!-- UPPER AIR SOUNDING -->
-<div class="panel" id="sounding">
-  <div class="snd-header" style="flex-wrap:wrap; gap: 0px 2px"> <!-- items removed from the style function: gap:4px 4px; position: center center;-->
-  <div class="section-title" style="margin:0;cursor:pointer;text-decoration:underline dotted;" 
-  title="Click to load a modeled sounding (KCID)"
-  onclick="loadModelSounding()">Upper Air Sounding</div>
-  <div id="sounding-station" style="margin:0;">Probing...</div>
-  <!-- Parcel Mode Controls 
-  <div id="parcel-controls" style="display:grid; grid-template-columns:auto auto; gap:1px;"> grid-template-columns:1fr 1fr; originally changed to auto auto-->  
+<div class="panel" id="sounding" style="position: relative;">
+  
+  <div id="sounding-selector-modal" style="display: none; position: absolute; inset: 0; background: rgba(11, 15, 20, 0.96); z-index: 100; padding: 12px; flex-direction: column; gap: 12px; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+    <div style="font-family: 'Bebas Neue', sans-serif; font-size: 20px; color: var(--accent); letter-spacing: 1px;">Load Custom Sounding</div>
+    
+    <div style="display: flex; gap: 8px; width: 90%; max-width: 320px; justify-content: center;">
+      <div style="position: relative; flex: 1; display: flex;">
+        <input type="text" id="custom-station-input" placeholder="Enter Station ID (e.g. DVN)" style="width: 100%; background: var(--panel2); border: 1px solid var(--border); color: #fff; font-family: 'IBM Plex Sans', sans-serif; font-size: 14px; padding: 6px 28px 6px 10px; border-radius: 4px; outline: none; text-transform: uppercase;">
+        
+        <span id="toggle-list-arrow" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); cursor: pointer; padding: 2px; font-size: 11px; user-select: none; z-index: 5;" title="Toggle Station Selection List">▼</span>
+      </div>
+
+      <datalist id="sounding-stations-list">
+        <option value="DVN">DVN - Davenport, IA</option>
+        <option value="ILX">ILX - Lincoln, IL</option>
+        <option value="OAX">OAX - Omaha, NE</option>
+        <option value="MPX">MPX - Minneapolis, MN</option>
+        <option value="GRB">GRB - Green Bay, WI</option>
+        <option value="TOP">TOP - Topeka, KS</option>
+        <option value="SGF">SGF - Springfield, MO</option>
+        <option value="LSX">LSX - St. Louis, MO</option>
+        <option value="ARX">ARX - La Crosse, WI</option>
+        <option value="ABR">ABR - Aberdeen, SD</option>
+        <option value="UNR">UNR - Rapid City, SD</option>
+        <option value="BIS">BIS - Bismarck, ND</option>
+        <option value="LBF">LBF - North Platte, NE</option>
+        <option value="RIW">RIW - Riverton, WY</option>
+        <option value="CYS">CYS - Cheyenne, WY</option>
+        <option value="DNR">DNR - Denver, CO</option>
+        <option value="AMA">AMA - Amarillo, TX</option>
+        <option value="OUN">OUN - Norman, OK</option>
+        <option value="FWD">FWD - Dallas/Fort Worth, TX</option>
+        <option value="SHV">SHV - Shreveport, LA</option>
+        <option value="LCH">LCH - Lake Charles, LA</option>
+        <option value="JAN">JAN - Jackson, MS</option>
+        <option value="BMX">BMX - Birmingham, AL</option>
+        <option value="LZK">LZK - Little Rock, AR</option>
+        <option value="CRP">CRP - Corpus Christi, TX</option>
+        <option value="EWX">EWX - Austin/San Antonio, TX</option>
+        <option value="MAF">MAF - Midland/Odessa, TX</option>
+        <option value="EPZ">EPZ - El Paso, TX</option>
+        <option value="BRO">BRO - Brownsville, TX</option>
+        <option value="DTX">DTX - Detroit, MI</option>
+        <option value="APX">APX - Gaylord, MI</option>
+        <option value="MQT">MQT - Marquette, MI</option>
+        <option value="ILN">ILN - Wilmington, OH</option>
+        <option value="PIT">PIT - Pittsburgh, PA</option>
+        <option value="BUF">BUF - Buffalo, NY</option>
+        <option value="ALB">ALB - Albany, NY</option>
+        <option value="OKX">OKX - New York City, NY</option>
+        <option value="CHH">CHH - Chatham, MA</option>
+        <option value="GYX">GYX - Gray, ME</option>
+        <option value="IAD">IAD - Sterling/Washington, VA</option>
+        <option value="RNK">RNK - Blacksburg, VA</option>
+        <option value="MHX">MHX - Newport/Morehead City, NC</option>
+        <option value="GSO">GSO - Greensboro, NC</option>
+        <option value="CHS">CHS - Charleston, SC</option>
+        <option value="FFC">FFC - Peachtree City/Atlanta, GA</option>
+        <option value="TAE">TAE - Tallahassee, FL</option>
+        <option value="TBW">TBW - Tampa Bay, FL</option>
+        <option value="MFL">MFL - Miami, FL</option>
+        <option value="KEY">KEY - Key West, FL</option>
+        <option value="JAX">JAX - Jacksonville, FL</option>
+        <option value="TFX">TFX - Great Falls, MT</option>
+        <option value="GGW">GGW - Glasgow, MT</option>
+        <option value="BOI">BOI - Boise, ID</option>
+        <option value="LKN">LKN - Elko, NV</option>
+        <option value="REV">REV - Reno, NV</option>
+        <option value="VEF">VEF - Las Vegas, NV</option>
+        <option value="SLC">SLC - Salt Lake City, UT</option>
+        <option value="GJT">GJT - Grand Junction, CO</option>
+        <option value="FGZ">FGZ - Flagstaff, AZ</option>
+        <option value="TUS">TUS - Tucson, AZ</option>
+        <option value="OTX">OTX - Spokane, WA</option>
+        <option value="UIL">UIL - Quillayute, WA</option>
+        <option value="SLE">SLE - Salem, OR</option>
+        <option value="MFR">MFR - Medford, OR</option>
+        <option value="OAK">OAK - Oakland, CA</option>
+        <option value="VBG">VBG - Vandenberg AFB, CA</option>
+        <option value="NKX">NKX - San Diego, CA</option>
+        <option value="YNE">YNE - Norway House, MB</option>
+        <option value="YWG">YWG - Winnipeg, MB</option>
+        <option value="CXW">CXW - Caribou, ME</option>
+        <option value="MYI">MYI - Maniworki, QC</option>
+        <option value="GYM">GYM - Guaymas, SON</option>
+        <option value="MTY">MTY - Monterrey, NL</option>
+      </datalist>
+
+      <select id="custom-hour-select" style="background: var(--panel2); border: 1px solid var(--border); color: #fff; font-family: 'IBM Plex Mono', monospace; font-size: 14px; padding: 6px; border-radius: 4px; outline: none; cursor: pointer;">
+        <option value="00">00Z</option>
+        <option value="12" selected>12Z</option>
+        <option value="18">18Z</option>
+      </select>
+    </div>
+
+    <div style="display: flex; gap: 8px; width: 90%; max-width: 320px; justify-content: center; margin-top: 2px;">
+      <button id="submit-custom-sounding" style="flex: 1; font-family: 'Bebas Neue', sans-serif; font-size: 14px; letter-spacing: 1px; color: #fff; background: rgba(58,160,255,0.25); border: 1px solid var(--accent); padding: 6px; border-radius: 4px; cursor: pointer;">Load Dataset</button>
+      <button id="cancel-custom-sounding" style="flex: 1; font-family: 'Bebas Neue', sans-serif; font-size: 14px; letter-spacing: 1px; color: var(--muted); background: transparent; border: 1px solid var(--border); padding: 6px; border-radius: 4px; cursor: pointer;">Cancel</button>
+    </div>
+    
+    <div id="selector-error-msg" style="font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; color: #ff6060; text-align: center; min-height: 16px;"></div>
+  </div>
+
+  <button id="cloud-overlay-btn">☁</button>
+  
+  <div class="snd-header" style="flex-wrap:wrap; gap: 0px 2px">
+    <div class="section-title" style="margin:0;cursor:pointer;text-decoration:underline dotted;" title="Click to load a modeled sounding (KCID)" onclick="loadModelSounding()">Upper Air Sounding</div>
+    
+    <div id="sounding-station" style="margin:0; cursor:pointer; text-decoration:underline rgba(255,255,255,0.15) dotted;">Probing...</div>
+    
     <div id="parcel-controls" style="display:flex; gap: 4px;">
       <button onclick="setParcelMode('WX')">WX</button>
       <button onclick="setParcelMode('SB')">SB</button>
@@ -1163,12 +1306,14 @@
     </div>
   </div>
   
-  <div id="skewt"
-    style="position:absolute; top:32px; left:0; width:100%; height:calc(100% - 32px);">
-  </div>
+  <div id="skewt" style="position:absolute; top:32px; left:0; width:100%; height:calc(100% - 32px);"></div>
 </div>
 
 <script>
+
+// Global states to maintain manual override persistence
+let manualStationOverride = null;
+let manualHourOverride = null;
 
 const CLOUD_SVG_PATHS = {
   // REVISED: Cirrus Uncinus with distinct upward-curving hooks on the right-hand tips
@@ -1314,6 +1459,7 @@ function initWithLocation(lat, lon) {
   fetchSun();
   //console.log('Current Location:',LAT, LON);
 }
+
 
 let showClouds = true;
 
@@ -3263,6 +3409,7 @@ function plotSkewT(data) {
       return { ...d, temp: T_dry, dew: Td_p };
     });
   }
+  
 
   const parcelResult = getParcelPath(data);
   const P_LCL_wx    = parcelResult?.P_LCL ?? 0;
@@ -3278,6 +3425,26 @@ function plotSkewT(data) {
   const Y_lin = pressure.map(p => Math.log(P0 / p));
   const skewTemp = temp.map((t, i) => isNaN(t) ? NaN : t + Y_lin[i] * Math.tan(skewAngle) * scaleFactor);
   const skewDew = dew.map((d, i) => isNaN(d) ? NaN : d + Y_lin[i] * Math.tan(skewAngle) * scaleFactor);
+
+  // ---- SFC LABELS (single copy, lives here) ----
+  const sfcIndex = pressure.reduce((bestIdx, p, i) =>
+    !isNaN(temp[i]) && p > (pressure[bestIdx] ?? 0) ? i : bestIdx, 0
+  );
+  const sfcTempF = Math.round(temp[sfcIndex] * 9/5 + 32);
+  const sfcDewF  = Math.round(dew[sfcIndex]  * 9/5 + 32);
+  const traceTempLabel = {
+    x: [skewTemp[sfcIndex] + 1.5], y: [pressure[sfcIndex]],
+    mode: 'text', text: [`${sfcTempF}°F`], textposition: 'middle right',
+    textfont: { color: 'rgba(255, 100, 100, 0.95)', size: 9, family: 'IBM Plex Mono, monospace' },
+    showlegend: false
+  };
+  const traceDewLabel = {
+    x: [skewDew[sfcIndex] - 1.5], y: [pressure[sfcIndex]],
+    mode: 'text', text: [`${sfcDewF}°F`], textposition: 'middle left',
+    textfont: { color: 'rgba(100, 210, 130, 0.95)', size: 9, family: 'IBM Plex Mono, monospace' },
+    showlegend: false
+  };
+  // -----------------------------------------------
 
   const traceTemp = {
     x: skewTemp,
@@ -3492,7 +3659,7 @@ function plotSkewT(data) {
         x: [labelSkewX + 1.5],
         y: [labelPoint.pres],
         mode: 'text',
-        text: [activeParcelType + ' — ' + sfcTemp + '°F'],
+        text: [sfcTemp + '°F' + '—' + activeParcelType], //[activeParcelType + '—' + sfcTemp + '°F']
         textposition: 'middle right',
         textfont: { color: 'rgba(255,220,0,0.7)', size: 9, family: 'IBM Plex Mono, monospace' },
         showlegend: false,
@@ -4038,13 +4205,6 @@ function plotSkewT(data) {
 
     // High-Density Wind-Sheared Cirrus Uncinus (Mare's Tails)
     if (type === 'Ci') {
-      /*const denseMaresTails = [
-        "M 0.05,0.85 C 0.18,0.82 0.30,0.70 0.38,0.40 C 0.40,0.25 0.44,0.08 0.48,0.02",
-        "M 0.22,0.90 C 0.35,0.85 0.46,0.72 0.54,0.45 C 0.56,0.30 0.62,0.12 0.65,0.05",
-        "M 0.42,0.80 C 0.52,0.75 0.62,0.60 0.70,0.30 C 0.72,0.15 0.76,0.03 0.80,0.00",
-        "M 0.60,0.75 C 0.70,0.70 0.78,0.58 0.84,0.35 C 0.86,0.22 0.90,0.10 0.93,0.04",
-        "M 0.75,0.85 C 0.82,0.82 0.88,0.72 0.92,0.50 C 0.94,0.38 0.97,0.25 0.99,0.18"
-      ].join(" ");*/
       const denseMaresTails = [
         // Left - tall pronounced hook
         "M 0.02,0.55 C 0.10,0.50 0.20,0.45 0.30,0.42 C 0.38,0.40 0.44,0.34 0.46,0.24 C 0.47,0.17 0.45,0.10 0.43,0.06",
@@ -4144,7 +4304,9 @@ function plotSkewT(data) {
     ...(traceFrost ? [traceFrost] : []), 
     ...parcelTraces, 
     // Conditional addition of Text Labels:
-    ...(showClouds ? cloudLabelTraces : [])
+    ...(showClouds ? cloudLabelTraces : []),
+    traceTempLabel,
+    traceDewLabel,
   ], {
     margin: { l: 40, r: 10, t: 10, b: 30 },
     paper_bgcolor: '#111720',
@@ -4355,6 +4517,7 @@ function drawHodograph(data) {
 //   - Within each branch: try primary station first, fall back to secondary
 //     if the fetch fails or returns empty/error data.
 
+
 async function fetchSPCSoundingFor(station, overrideHour) {
   const now  = new Date();
   const yy   = String(now.getUTCFullYear()).slice(2);
@@ -4390,7 +4553,7 @@ async function tryStations(primary, secondary, overrideHour) {
 }
 
 
-async function loadSounding() {
+/*async function loadSounding() {
   const label   = document.getElementById('sounding-station');
   const utcH= new Date().getUTCHours();
   const prefer12zFallback = (utcH >= 12 && utcH < 18); // prefer ILX during 12–17z window due to DVN's historical 12z issues
@@ -4473,10 +4636,227 @@ async function loadSounding() {
   // Wire up toolbar buttons
   /*document.querySelectorAll('.snd-mode-btn').forEach(btn => {
     btn.addEventListener('click', () => switchSPCLayer(btn));
-  });*/
+  });*
+}*/
+
+async function loadSounding() {
+  const label = document.getElementById('sounding-station');
+  if (!label) return;
+  
+  const utcH = new Date().getUTCHours();
+  const prefer12zFallback = (utcH >= 12 && utcH < 18);
+
+  try {
+    label.textContent = 'Fetching sounding…';
+    label.style.color = 'var(--muted)';
+    
+    let result;
+    
+    // --- EVALUATE OVERRIDES VS AUTOMATIC ROUTING ---
+    if (manualStationOverride) {
+      // User has manually locked a custom tracking target
+      const targetHour = manualHourOverride || (prefer12zFallback ? '12' : '00');
+      result = await fetchSPCSoundingFor(manualStationOverride, targetHour);
+    } else {
+      // Fallback directly onto native automatic scheduled sequencing
+      if (prefer12zFallback) {
+        result = await tryStations('ILX', 'DVN');
+      } else {
+        try {
+          result = await tryStations('DVN', 'ILX');
+        } catch (e) {
+          console.warn('DVN+ILX both failed, falling back to 12z ILX');
+          result = await tryStations('ILX', 'DVN', '12');
+        }
+      }
+    }
+
+    // --- RENDER TEXT LABELS ACCORDINGLY ---
+    const runTag = `${result.hour}z`;
+    const tagSuffix = manualStationOverride ? '' : '';
+    
+    if (manualStationOverride) {
+      label.textContent = `${result.station} - ${runTag}${tagSuffix}`;
+      label.style.color = 'var(--accent)';
+    } else if (prefer12zFallback) {
+      const wasPreferred = result.station === 'ILX';
+      label.textContent = wasPreferred ? `ILX - ${runTag}` : `DVN - ${runTag}`;
+      label.style.color = wasPreferred ? '#ffb060' : 'var(--accent)';
+    } else {
+      const wasPreferred = result.station === 'DVN';
+      label.textContent = wasPreferred ? `DVN - ${runTag}` : `ILX - ${runTag}`;
+      label.style.color = wasPreferred ? 'var(--accent)' : '#ffb060';
+    }
+
+    // --- INTEGRATE AND PLOT ENVIRONMENT DATA ---
+    const data = parseSPC(result.text);
+    if (!data || data.length === 0) throw new Error('No valid levels parsed from ' + result.station);
+    
+    currentSoundingData = data;
+
+    function isValidParcel(res) {
+      if (!res) return false;
+      return !res.parcelPath.some(pt => {
+        if (pt.pres < 500) return false;
+        const env = data.reduce((closest, d) => Math.abs(d.pres - pt.pres) < Math.abs(closest.pres - pt.pres) ? d : closest );
+        return !isNaN(env.dew) && pt.temp < env.dew;
+      });
+    }
+
+    const wxReady = WxTemp != null && WxDew != null && !isNaN(WxTemp) && !isNaN(WxDew);
+    const modeOrder = wxReady ? ['WX', 'SB', 'ML', 'MU'] : ['SB', 'ML', 'MU'];
+    const computeFns = {
+      WX: () => { parcelMode = 'WX'; return computeParcelPath(data); },
+      SB: () => { parcelMode = 'SB'; return computeParcelPath(data); },
+      ML: () => { parcelMode = 'ML'; return computeMLParcelPath(data); },
+      MU: () => { parcelMode = 'MU'; return computeMUParcelPath(data); },
+    };
+
+    for (const mode of modeOrder) {
+      const parcelRes = computeFns[mode]();
+      if (isValidParcel(parcelRes)) break;
+    }
+
+    updateParcelButtons();
+    plotSkewT(data);
+
+  } catch (e) {
+    label.textContent = 'Sounding unavailable';
+    label.style.color = '#ff6060';
+    console.error('Sounding error:', e);
+  }
 }
 
-document.getElementById('sounding-station').addEventListener('click', toggleCloudLayer);
+// ==========================================
+// SOUNDING MODAL INTERACTION LISTENERS
+// ==========================================
+const soundingModal = document.getElementById('sounding-selector-modal');
+const stationInput = document.getElementById('custom-station-input');
+const hourSelect = document.getElementById('custom-hour-select');
+const submitBtn = document.getElementById('submit-custom-sounding');
+const cancelBtn = document.getElementById('cancel-custom-sounding');
+const errorMsg = document.getElementById('selector-error-msg');
+const soundingStationLabel = document.getElementById('sounding-station');
+
+// 1. Single Click: Open custom input window smoothly
+soundingStationLabel.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (errorMsg) errorMsg.textContent = '';
+  // Set the input field back to current selection if one is active
+  if (stationInput) stationInput.value = manualStationOverride || ''; 
+  if (soundingModal) soundingModal.style.display = 'flex';
+  if (stationInput) stationInput.focus();
+});
+
+// 2. Double Click: Drop the manual lock and restore automatic scheduling instantly
+soundingStationLabel.addEventListener('dblclick', (e) => {
+  e.stopPropagation();
+  manualStationOverride = null;
+  manualHourOverride = null;
+  console.log("Resetting to default automatic sounding loop...");
+  loadSounding();
+});
+
+// 3. Dismiss Modal safely
+cancelBtn.addEventListener('click', () => {
+  if (soundingModal) soundingModal.style.display = 'none';
+});
+
+// 4. Process Selection and Fetch
+submitBtn.addEventListener('click', async () => {
+  let rawValue = stationInput.value.trim();
+  
+  // Extract just the 3-letter station ID code if they picked from an autocomplete list
+  if (rawValue.includes(' ')) {
+    rawValue = rawValue.split(' ')[0];
+  }
+  
+  const targetStation = rawValue.toUpperCase();
+  const targetHour = hourSelect.value;
+  
+  if (targetStation.length !== 3) {
+    errorMsg.textContent = 'Please enter or select a valid 3-letter station ID.';
+    return;
+  }
+  
+  errorMsg.style.color = 'var(--muted)';
+  errorMsg.textContent = 'Validating file on SPC server...';
+  
+  const now = new Date();
+  const yy = String(now.getUTCFullYear()).slice(2);
+  const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(now.getUTCDate()).padStart(2, '0');
+  
+  const validationUrl = `https://www.spc.noaa.gov/exper/soundings/${yy}${mm}${dd}${targetHour}_OBS/${targetStation}.txt`;
+  
+  try {
+    const testRes = await fetch(validationUrl);
+    if (!testRes.ok) throw new Error(`Cycle unavailable (HTTP ${testRes.status})`);
+    
+    const testText = await testRes.text();
+    if (!testText || testText.includes('ERROR') || testText.length < 100) {
+      throw new Error('Data empty or station missing for this hour');
+    }
+    
+    // Success! Lock custom states and hide modal window
+    manualStationOverride = targetStation;
+    manualHourOverride = targetHour;
+    
+    if (soundingModal) soundingModal.style.display = 'none';
+    await loadSounding();
+    
+  } catch (err) {
+    // Retain existing chart if the new custom request drops offline
+    errorMsg.style.color = '#ff6060';
+    errorMsg.textContent = 'Data unavailable at this time.';
+    console.warn(`Validation failed for ${targetStation} at ${targetHour}Z:`, err.message);
+  }
+});
+
+// 5. Submit easily via Enter key press
+stationInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') submitBtn.click();
+});
+
+const stationInputContainer = document.getElementById('custom-station-input');
+const listArrowToggle = document.getElementById('toggle-list-arrow');
+
+if (stationInputContainer && listArrowToggle) {
+  // Arrow Click Event: Toggle connecting or disconnecting the datalist options
+  listArrowToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isLinked = stationInputContainer.hasAttribute('list');
+    
+    if (isLinked) {
+      stationInputContainer.removeAttribute('list');
+      listArrowToggle.style.color = 'var(--muted)';
+      listArrowToggle.textContent = '▼';
+    } else {
+      // 1. Link the datalist options back up
+      stationInputContainer.setAttribute('list', 'sounding-stations-list');
+      listArrowToggle.style.color = 'var(--accent)';
+      listArrowToggle.textContent = '▲';
+      
+      // 2. FORCE focus back to the input box so the list drops down instantly
+      stationInputContainer.focus();
+      
+      // 3. Optional: Clear out any previous typing so the full list displays immediately
+      stationInputContainer.value = '';
+    }
+  });
+
+  // Typing Input Event: Instantly close menu panel if user starts typing manually
+  stationInputContainer.addEventListener('input', () => {
+    if (stationInputContainer.hasAttribute('list')) {
+      stationInputContainer.removeAttribute('list');
+      listArrowToggle.style.color = 'var(--muted)';
+      listArrowToggle.textContent = '▼';
+    }
+  });
+}
+
+//document.getElementById('sounding-station').addEventListener('click', toggleCloudLayer);
+document.getElementById('cloud-overlay-btn').addEventListener('click', toggleCloudLayer);
 
 function getParcelPath(data) {
   if (parcelMode === 'ML') return computeMLParcelPath(data);
@@ -4674,24 +5054,6 @@ const SPC_CITIES = [
   [43.66, -70.26, 'Portland ME'],
 ];
 
-
-// ---- SVG hatch pattern def (injected into Leaflet's SVG layer) ----
-/*function ensureHatchPattern() {
-  if (document.getElementById('spc-hatch-svg')) return;
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('id', 'spc-hatch-svg');
-  svg.setAttribute('width', '0');
-  svg.setAttribute('height', '0');
-  svg.style.cssText = 'position:absolute;pointer-events:none;';
-  svg.innerHTML = `
-    <defs>
-      <pattern id="spc-hatch" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(45)">
-        <line x1="0" y1="0" x2="0" y2="7" stroke="black" stroke-width="3.5"/>
-      </pattern>
-    </defs>
-  `;
-  document.body.appendChild(svg);
-}*/
 
 function ensureHatchPattern() {
   if (document.getElementById('spc-hatch-svg')) return;
@@ -5008,37 +5370,6 @@ function checkCurrentRisk(features) {
     return highestRisk;
 }
 
-/*
-async function getMultiDayRisks() {
-  const urls = [
-    'https://www.spc.noaa.gov/products/outlook/day1otlk_cat.lyr.geojson',
-    'https://www.spc.noaa.gov/products/outlook/day2otlk_cat.lyr.geojson',
-    'https://www.spc.noaa.gov/products/outlook/day3otlk_cat.lyr.geojson',
-    'https://www.spc.noaa.gov/products/exper/day4-8/day4prob.lyr.geojson',
-    'https://www.spc.noaa.gov/products/exper/day4-8/day5prob.lyr.geojson',
-  ];
-
-  return Promise.all(urls.map(async (url) => {
-    try {
-      const res = await fetch(url);
-      const data = await res.json();
-
-      // Look for the VALID property inside Day 1 features to get the SPC calendar date
-      if (url.includes('day1otlk') && data.features && data.features.length > 0) {
-        const featWithValid = data.features.find(f => f.properties && f.properties.VALID);
-        if (featWithValid) {
-          day1ValidDate = String(featWithValid.properties.VALID).slice(0, 8); // Extracts 'YYYYMMDD'
-        }
-      }
-
-      // Reuse your existing logic that iterates features
-      return checkCurrentRisk(data.features || []); 
-    } catch (e) {
-      return 'NONE';
-    }
-  }));
-}*/
-
 async function getMultiDayRisks() {
   const urls = [
     'https://www.spc.noaa.gov/products/outlook/day1otlk_cat.lyr.geojson',
@@ -5287,7 +5618,7 @@ function toggleCloudLayer() {
 }
 
 function updateCloudButton() {
-  const el = document.getElementById('sounding-station');
+  const el = document.getElementById('cloud-overlay-btn'); //sounding-station
   if (!el) return;
   el.style.opacity = showClouds ? '1' : '0.4';
 }
