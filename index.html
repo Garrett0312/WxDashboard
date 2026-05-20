@@ -1854,16 +1854,15 @@ async function fetchForecast() {
       if (!hasDayPrecip && night && maxPop > 15) {
         const nightDesc = compactForecast(night.shortForecast);
         const hasNightPrecip = precipKeywords.some(kw => nightDesc.includes(kw));
-        
         if (hasNightPrecip) {
-          // Strip out probability qualifiers (ISO, SCT'D, WDSPRD) 
-          let cleanNight = nightDesc
-            .replace(/\b(ISO|SCT'D|WDSPRD)\b/gi, '')
-            .replace(/\s+/g, ' ')
-            .trim();
-          
-          if (cleanNight) {
-            shortDesc += ` PM ${cleanNight}`;
+          // Extract only precip-type tokens, not sky coverage
+          const nightTokens = nightDesc.split(/\s+/);
+          const precipOnlyTokens = nightTokens.filter(token =>
+            precipKeywords.some(kw => token.includes(kw))
+          );
+
+          if (precipOnlyTokens.length > 0) {
+            shortDesc += ` PM ${precipOnlyTokens.join(' ')}`;
           }
         }
       }
