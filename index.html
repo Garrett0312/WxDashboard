@@ -1310,6 +1310,9 @@
 </div>
 
 <script>
+// Detect if the dashboard is running on a Smart TV, media device, or casting stick
+const isTVMode = /SmartTV|Tizen|Web0S|NetCast|LGPlat|AppleTV|Roku|RokuId|HbbTV|CastVideo|Vizio/i.test(navigator.userAgent);
+
 
 // Global states to maintain manual override persistence
 let manualStationOverride = null;
@@ -4742,8 +4745,32 @@ const soundingStationLabel = document.getElementById('sounding-station');
 soundingStationLabel.addEventListener('click', (e) => {
   e.stopPropagation();
   if (errorMsg) errorMsg.textContent = '';
-  // Set the input field back to current selection if one is active
-  if (stationInput) stationInput.value = manualStationOverride || ''; 
+  
+  if (stationInput) {
+    stationInput.value = manualStationOverride || ''; 
+    
+    if (isTVMode) {
+      // IF ON A TV: Force the input box to block virtual keyboards, and auto-link the list!
+      stationInput.setAttribute('readonly', 'true');
+      stationInput.setAttribute('list', 'sounding-stations-list');
+      stationInput.placeholder = "Tap Arrow to Choose Station";
+      
+      if (listArrowToggle) {
+        listArrowToggle.style.color = 'var(--accent)';
+        listArrowToggle.textContent = '▲';
+      }
+    } else {
+      // IF ON A PC: Let the user type freely as normal
+      stationInput.removeAttribute('readonly');
+      stationInput.removeAttribute('list');
+      stationInput.placeholder = "Enter Station ID (e.g. OAX)";
+      if (listArrowToggle) {
+        listArrowToggle.style.color = 'var(--muted)';
+        listArrowToggle.textContent = '▼';
+      }
+    }
+  }
+  
   if (soundingModal) soundingModal.style.display = 'flex';
   if (stationInput) stationInput.focus();
 });
@@ -4823,30 +4850,33 @@ const listArrowToggle = document.getElementById('toggle-list-arrow');
 
 if (stationInputContainer && listArrowToggle) {
   // Arrow Click Event: Toggle connecting or disconnecting the datalist options
-  listArrowToggle.addEventListener('click', (e) => {
+    listArrowToggle.addEventListener('click', (e) => {
     e.stopPropagation();
-    const isLinked = stationInputContainer.hasAttribute('list');
     
+    // If we're on a TV, the list is permanently locked open, so clicking the arrow can just clear the field
+    if (isTVMode) {
+      stationInputContainer.value = '';
+      return;
+    }
+    
+    const isLinked = stationInputContainer.hasAttribute('list');
     if (isLinked) {
       stationInputContainer.removeAttribute('list');
       listArrowToggle.style.color = 'var(--muted)';
       listArrowToggle.textContent = '▼';
     } else {
-      // 1. Link the datalist options back up
       stationInputContainer.setAttribute('list', 'sounding-stations-list');
       listArrowToggle.style.color = 'var(--accent)';
       listArrowToggle.textContent = '▲';
-      
-      // 2. FORCE focus back to the input box so the list drops down instantly
       stationInputContainer.focus();
-      
-      // 3. Optional: Clear out any previous typing so the full list displays immediately
-      stationInputContainer.value = '';
     }
   });
 
   // Typing Input Event: Instantly close menu panel if user starts typing manually
   stationInputContainer.addEventListener('input', () => {
+    // If we are on a TV, do absolutely nothing here so the list stays safely open
+    if (isTVMode) return;
+
     if (stationInputContainer.hasAttribute('list')) {
       stationInputContainer.removeAttribute('list');
       listArrowToggle.style.color = 'var(--muted)';
