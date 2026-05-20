@@ -1193,102 +1193,106 @@
   <div id="sounding-selector-modal" style="display: none; position: absolute; inset: 0; background: rgba(11, 15, 20, 0.96); z-index: 100; padding: 12px; flex-direction: column; gap: 12px; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
     <div style="font-family: 'Bebas Neue', sans-serif; font-size: 20px; color: var(--accent); letter-spacing: 1px;">Load Custom Sounding</div>
     
-    <div style="display: flex; gap: 8px; width: 90%; max-width: 320px; justify-content: center;">
-      <div style="position: relative; flex: 1; display: flex;">
-        <input type="text" id="custom-station-input" placeholder="Enter Station ID (e.g. DVN)" style="width: 100%; background: var(--panel2); border: 1px solid var(--border); color: #fff; font-family: 'IBM Plex Sans', sans-serif; font-size: 14px; padding: 6px 28px 6px 10px; border-radius: 4px; outline: none; text-transform: uppercase;">
+      <div style="display: flex; gap: 8px; width: 90%; max-width: 340px; justify-content: center;">
         
-        <span id="toggle-list-arrow" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); cursor: pointer; padding: 2px; font-size: 11px; user-select: none; z-index: 5;" title="Toggle Station Selection List">▼</span>
+        <select id="custom-station-input" style="flex: 1; background: var(--panel2); border: 1px solid var(--border); color: #fff; font-family: 'IBM Plex Sans', sans-serif; font-size: 14px; padding: 6px 10px; border-radius: 4px; outline: none; cursor: pointer; max-width: 220px;">
+          <option value="" disabled selected>Select a Station...</option>
+          <option value="ABR">ABR - Aberdeen, SD</option>
+          <option value="ALB">ALB - Albany, NY</option>
+          <option value="AMA">AMA - Amarillo, TX</option>
+          <option value="APX">APX - Gaylord, MI</option>
+          <option value="ARX">ARX - La Crosse, WI</option>
+          <option value="BIS">BIS - Bismarck, ND</option>
+          <option value="BMX">BMX - Birmingham, AL</option>
+          <option value="BOI">BOI - Boise, ID</option>
+          <option value="BRO">BRO - Brownsville, TX</option>
+          <option value="BUF">BUF - Buffalo, NY</option>
+          <option value="CHH">CHH - Chatham, MA</option>
+          <option value="CHS">CHS - Charleston, SC</option>
+          <option value="CRP">CRP - Corpus Christi, TX</option>
+          <option value="CXW">CXW - Caribou, ME</option>
+          <option value="CYS">CYS - Cheyenne, WY</option>
+          <option value="DNR">DNR - Denver, CO</option>
+          <option value="DTX">DTX - Detroit, MI</option>
+          <option value="DVN">DVN - Davenport, IA</option>
+          <option value="EPZ">EPZ - El Paso, TX</option>
+          <option value="EWX">EWX - Austin/San Antonio, TX</option>
+          <option value="FFC">FFC - Peachtree City/Atlanta, GA</option>
+          <option value="FGZ">FGZ - Flagstaff, AZ</option>
+          <option value="FWD">FWD - Dallas/Fort Worth, TX</option>
+          <option value="GGW">GGW - Glasgow, MT</option>
+          <option value="GJT">GJT - Grand Junction, CO</option>
+          <option value="GRB">GRB - Green Bay, WI</option>
+          <option value="GSO">GSO - Greensboro, NC</option>
+          <option value="GYM">GYM - Guaymas, SON</option>
+          <option value="GYX">GYX - Gray, ME</option>
+          <option value="IAD">IAD - Sterling/Washington, VA</option>
+          <option value="ILN">ILN - Wilmington, OH</option>
+          <option value="ILX">ILX - Lincoln, IL</option>
+          <option value="JAN">JAN - Jackson, MS</option>
+          <option value="JAX">JAX - Jacksonville, FL</option>
+          <option value="KEY">KEY - Key West, FL</option>
+          <option value="LBF">LBF - North Platte, NE</option>
+          <option value="LCH">LCH - Lake Charles, LA</option>
+          <option value="LKN">LKN - Elko, NV</option>
+          <option value="LSX">LSX - St. Louis, MO</option>
+          <option value="LZK">LZK - Little Rock, AR</option>
+          <option value="MAF">MAF - Midland/Odessa, TX</option>
+          <option value="MFL">MFL - Miami, FL</option>
+          <option value="MFR">MFR - Medford, OR</option>
+          <option value="MHX">MHX - Newport/Morehead City, NC</option>
+          <option value="MPX">MPX - Minneapolis, MN</option>
+          <option value="MQT">MQT - Marquette, MI</option>
+          <option value="MTY">MTY - Monterrey, NL</option>
+          <option value="MYI">MYI - Maniworki, QC</option>
+          <option value="NKX">NKX - San Diego, CA</option>
+          <option value="OAK">OAK - Oakland, CA</option>
+          <option value="OAX">OAX - Omaha, NE</option>
+          <option value="OKX">OKX - New York City, NY</option>
+          <option value="OUN">OUN - Norman, OK</option>
+          <option value="PIT">PIT - Pittsburgh, PA</option>
+          <option value="REV">REV - Reno, NV</option>
+          <option value="RIW">RIW - Riverton, WY</option>
+          <option value="RNK">RNK - Blacksburg, VA</option>
+          <option value="SGF">SGF - Springfield, MO</option>
+          <option value="SHV">SHV - Shreveport, LA</option>
+          <option value="SLC">SLC - Salt Lake City, UT</option>
+          <option value="SLE">SLE - Salem, OR</option>
+          <option value="TAE">TAE - Tallahassee, FL</option>
+          <option value="TBW">TBW - Tampa Bay, FL</option>
+          <option value="TFX">TFX - Great Falls, MT</option>
+          <option value="TOP">TOP - Topeka, KS</option>
+          <option value="TUS">TUS - Tucson, AZ</option>
+          <option value="UIL">UIL - Quillayute, WA</option>
+          <option value="UNR">UNR - Rapid City, SD</option>
+          <option value="VBG">VBG - Vandenberg AFB, CA</option>
+          <option value="VEF">VEF - Las Vegas, NV</option>
+          <option value="YNE">YNE - Norway House, MB</option>
+          <option value="YWG">YWG - Winnipeg, MB</option>
+        </select>
+
+        <select id="custom-hour-select" style="background: var(--panel2); border: 1px solid var(--border); color: #fff; font-family: 'IBM Plex Mono', monospace; font-size: 14px; padding: 6px; border-radius: 4px; outline: none; cursor: pointer;">
+          <option value="00">00Z</option>
+          <option value="06">06Z</option>
+          <option value="12" selected>12Z</option>
+          <option value="14">14Z</option>
+          <option value="15">15Z</option>
+          <option value="16">16Z</option>
+          <option value="17">17Z</option>
+          <option value="18">18Z</option>
+          <option value="19">19Z</option>
+          <option value="20">20Z</option>
+          <option value="21">21Z</option>
+          <option value="22">22Z</option>
+        </select>
       </div>
 
-      <datalist id="sounding-stations-list">
-        <option value="DVN">DVN - Davenport, IA</option>
-        <option value="ILX">ILX - Lincoln, IL</option>
-        <option value="OAX">OAX - Omaha, NE</option>
-        <option value="MPX">MPX - Minneapolis, MN</option>
-        <option value="GRB">GRB - Green Bay, WI</option>
-        <option value="TOP">TOP - Topeka, KS</option>
-        <option value="SGF">SGF - Springfield, MO</option>
-        <option value="LSX">LSX - St. Louis, MO</option>
-        <option value="ARX">ARX - La Crosse, WI</option>
-        <option value="ABR">ABR - Aberdeen, SD</option>
-        <option value="UNR">UNR - Rapid City, SD</option>
-        <option value="BIS">BIS - Bismarck, ND</option>
-        <option value="LBF">LBF - North Platte, NE</option>
-        <option value="RIW">RIW - Riverton, WY</option>
-        <option value="CYS">CYS - Cheyenne, WY</option>
-        <option value="DNR">DNR - Denver, CO</option>
-        <option value="AMA">AMA - Amarillo, TX</option>
-        <option value="OUN">OUN - Norman, OK</option>
-        <option value="FWD">FWD - Dallas/Fort Worth, TX</option>
-        <option value="SHV">SHV - Shreveport, LA</option>
-        <option value="LCH">LCH - Lake Charles, LA</option>
-        <option value="JAN">JAN - Jackson, MS</option>
-        <option value="BMX">BMX - Birmingham, AL</option>
-        <option value="LZK">LZK - Little Rock, AR</option>
-        <option value="CRP">CRP - Corpus Christi, TX</option>
-        <option value="EWX">EWX - Austin/San Antonio, TX</option>
-        <option value="MAF">MAF - Midland/Odessa, TX</option>
-        <option value="EPZ">EPZ - El Paso, TX</option>
-        <option value="BRO">BRO - Brownsville, TX</option>
-        <option value="DTX">DTX - Detroit, MI</option>
-        <option value="APX">APX - Gaylord, MI</option>
-        <option value="MQT">MQT - Marquette, MI</option>
-        <option value="ILN">ILN - Wilmington, OH</option>
-        <option value="PIT">PIT - Pittsburgh, PA</option>
-        <option value="BUF">BUF - Buffalo, NY</option>
-        <option value="ALB">ALB - Albany, NY</option>
-        <option value="OKX">OKX - New York City, NY</option>
-        <option value="CHH">CHH - Chatham, MA</option>
-        <option value="GYX">GYX - Gray, ME</option>
-        <option value="IAD">IAD - Sterling/Washington, VA</option>
-        <option value="RNK">RNK - Blacksburg, VA</option>
-        <option value="MHX">MHX - Newport/Morehead City, NC</option>
-        <option value="GSO">GSO - Greensboro, NC</option>
-        <option value="CHS">CHS - Charleston, SC</option>
-        <option value="FFC">FFC - Peachtree City/Atlanta, GA</option>
-        <option value="TAE">TAE - Tallahassee, FL</option>
-        <option value="TBW">TBW - Tampa Bay, FL</option>
-        <option value="MFL">MFL - Miami, FL</option>
-        <option value="KEY">KEY - Key West, FL</option>
-        <option value="JAX">JAX - Jacksonville, FL</option>
-        <option value="TFX">TFX - Great Falls, MT</option>
-        <option value="GGW">GGW - Glasgow, MT</option>
-        <option value="BOI">BOI - Boise, ID</option>
-        <option value="LKN">LKN - Elko, NV</option>
-        <option value="REV">REV - Reno, NV</option>
-        <option value="VEF">VEF - Las Vegas, NV</option>
-        <option value="SLC">SLC - Salt Lake City, UT</option>
-        <option value="GJT">GJT - Grand Junction, CO</option>
-        <option value="FGZ">FGZ - Flagstaff, AZ</option>
-        <option value="TUS">TUS - Tucson, AZ</option>
-        <option value="OTX">OTX - Spokane, WA</option>
-        <option value="UIL">UIL - Quillayute, WA</option>
-        <option value="SLE">SLE - Salem, OR</option>
-        <option value="MFR">MFR - Medford, OR</option>
-        <option value="OAK">OAK - Oakland, CA</option>
-        <option value="VBG">VBG - Vandenberg AFB, CA</option>
-        <option value="NKX">NKX - San Diego, CA</option>
-        <option value="YNE">YNE - Norway House, MB</option>
-        <option value="YWG">YWG - Winnipeg, MB</option>
-        <option value="CXW">CXW - Caribou, ME</option>
-        <option value="MYI">MYI - Maniworki, QC</option>
-        <option value="GYM">GYM - Guaymas, SON</option>
-        <option value="MTY">MTY - Monterrey, NL</option>
-      </datalist>
-
-      <select id="custom-hour-select" style="background: var(--panel2); border: 1px solid var(--border); color: #fff; font-family: 'IBM Plex Mono', monospace; font-size: 14px; padding: 6px; border-radius: 4px; outline: none; cursor: pointer;">
-        <option value="00">00Z</option>
-        <option value="12" selected>12Z</option>
-        <option value="18">18Z</option>
-      </select>
-    </div>
-
-    <div style="display: flex; gap: 8px; width: 90%; max-width: 320px; justify-content: center; margin-top: 2px;">
-      <button id="submit-custom-sounding" style="flex: 1; font-family: 'Bebas Neue', sans-serif; font-size: 14px; letter-spacing: 1px; color: #fff; background: rgba(58,160,255,0.25); border: 1px solid var(--accent); padding: 6px; border-radius: 4px; cursor: pointer;">Load Dataset</button>
-      <button id="cancel-custom-sounding" style="flex: 1; font-family: 'Bebas Neue', sans-serif; font-size: 14px; letter-spacing: 1px; color: var(--muted); background: transparent; border: 1px solid var(--border); padding: 6px; border-radius: 4px; cursor: pointer;">Cancel</button>
-    </div>
-    
-    <div id="selector-error-msg" style="font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; color: #ff6060; text-align: center; min-height: 16px;"></div>
+      <div style="display: flex; gap: 8px; width: 90%; max-width: 320px; justify-content: center; margin-top: 2px;">
+        <button id="submit-custom-sounding" style="flex: 1; font-family: 'Bebas Neue', sans-serif; font-size: 14px; letter-spacing: 1px; color: #fff; background: rgba(58,160,255,0.25); border: 1px solid var(--accent); padding: 6px; border-radius: 4px; cursor: pointer;">Load Dataset</button>
+        <button id="cancel-custom-sounding" style="flex: 1; font-family: 'Bebas Neue', sans-serif; font-size: 14px; letter-spacing: 1px; color: var(--muted); background: transparent; border: 1px solid var(--border); padding: 6px; border-radius: 4px; cursor: pointer;">Cancel</button>
+      </div>
+      
+      <div id="selector-error-msg" style="font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; color: #ff6060; text-align: center; min-height: 16px;"></div>
   </div>
 
   <button id="cloud-overlay-btn">☁</button>
@@ -1311,8 +1315,20 @@
 
 <script>
 // Detect if the dashboard is running on a Smart TV, media device, or casting stick
-const isTVMode = /SmartTV|Tizen|Web0S|NetCast|LGPlat|AppleTV|Roku|RokuId|HbbTV|CastVideo|Vizio/i.test(navigator.userAgent);
+//const isTVMode = /SmartTV|Tizen|Web0S|NetCast|LGPlat|AppleTV|Roku|RokuId|HbbTV|CastVideo|Vizio/i.test(navigator.userAgent);
+//console.log(isTVMode);
+// 1. Check for known TV signatures in the user agent string
+const hasTvUserAgent = /SmartTV|Tizen|Web0S|NetCast|LGPlat|AppleTV|Roku|RokuId|HbbTV|CastVideo|Vizio|AFT|Nexus Player|DroidTV/i.test(navigator.userAgent);
 
+// 2. Check if the device lacks touch support but behaves like a generic desktop layout
+const looksLikeTvLayout = (!('ontouchstart' in window) && navigator.maxTouchPoints === 0 && window.screen.width >= 1280);
+
+// 3. COMBINED DETECTION SYSTEM
+// FORCE TRUE OVERRIDE: Since this file runs on your dedicated TV dashboard, 
+// you can just change this to "let isTVMode = true;" if the browser checks still fail!
+//let isTVMode = hasTvUserAgent || looksLikeTvLayout;
+let isTVMode = true;
+console.log(isTVMode);
 
 // Global states to maintain manual override persistence
 let manualStationOverride = null;
@@ -1728,7 +1744,7 @@ async function fetchAmbient() {
     updateTicker();
 
     //document.getElementById('last-updated').textContent = `${LAT}/${LON}: ` + new Date().toLocaleTimeString();
-    document.getElementById('last-updated').textContent = `${Number(LAT).toFixed(2)}/${Number(LON).toFixed(2)}: ` + new Date().toLocaleTimeString();
+    document.getElementById('last-updated').textContent = `${Number(LAT).toFixed(2)}/${Number(LON).toFixed(2)}: ` + new Date().toLocaleTimeString() + `${isTVMode}`;
   } catch(e) {
     document.getElementById('wx-loading').textContent = 'Station error: ' + e.message;
     console.error('Ambient Weather:', e);
@@ -3660,7 +3676,7 @@ function plotSkewT(data) {
       const labelSkewX = labelPoint.temp + Math.log(P0 / labelPoint.pres) * Math.tan(skewAngle) * scaleFactor;
       parcelTraces.push({
         x: [labelSkewX + 1.5],
-        y: [labelPoint.pres],
+        y: [labelPoint.pres - 70],
         mode: 'text',
         text: [sfcTemp + '°F' + '—' + activeParcelType], //[activeParcelType + '—' + sfcTemp + '°F']
         textposition: 'middle right',
@@ -3958,7 +3974,7 @@ function plotSkewT(data) {
         pAnvilTop = cappedTopPressure ?? (dynamicLCL - 100); 
       }
 
-      const pAnvilBottom = pAnvilTop + 25;
+      const pAnvilBottom = pAnvilTop + 15;
 
       // =================================================================
       // RENDERING ENGINE
@@ -4037,11 +4053,18 @@ function plotSkewT(data) {
 
         const leftNeck = leftTrunkPoints[leftTrunkPoints.length - 1];
         const rightNeck = rightTrunkPoints[rightTrunkPoints.length - 1];
-        const midNeckX = (leftNeck.x + rightNeck.x) / 2;
-
         const pOvershootPeak = pAnvilTop - 15;
-        masterTrunkPath += ` C ${leftNeck.x},${pOvershootPeak + 6} ${midNeckX - 0.02},${pOvershootPeak} ${midNeckX},${pOvershootPeak}`;
-        masterTrunkPath += ` C ${midNeckX + 0.02},${pOvershootPeak} ${rightNeck.x},${pOvershootPeak + 6} ${rightNeck.x},${rightNeck.y}`;
+
+        // --- HARDCODED OVERSHOOTING TOP DOME (Derived explicitly from upper cuPath geometry) ---
+        // Maps the normalized upper cumulus curves cleanly to bridge leftNeck to rightNeck smoothly
+        const dx = rightNeck.x - leftNeck.x;
+        const dy = leftNeck.y - pOvershootPeak;
+
+        // Adjusted control points to eliminate the concave pinch-in near the necks
+        masterTrunkPath += ` C ${leftNeck.x - 0.05 * dx},${leftNeck.y - 0.15 * dy} ${leftNeck.x + 0.02 * dx},${leftNeck.y - 0.45 * dy} ${leftNeck.x + 0.17 * dx},${leftNeck.y - 0.42 * dy}`;
+        masterTrunkPath += ` C ${leftNeck.x + 0.22 * dx},${leftNeck.y - 0.82 * dy} ${leftNeck.x + 0.41 * dx},${leftNeck.y - 0.96 * dy} ${leftNeck.x + 0.52 * dx},${leftNeck.y - 0.83 * dy}`;
+        masterTrunkPath += ` C ${leftNeck.x + 0.62 * dx},${leftNeck.y - 0.96 * dy} ${leftNeck.x + 0.78 * dx},${leftNeck.y - 0.82 * dy} ${leftNeck.x + 0.83 * dx},${leftNeck.y - 0.42 * dy}`;
+        masterTrunkPath += ` C ${leftNeck.x + 0.98 * dx},${leftNeck.y - 0.45 * dy} ${rightNeck.x + 0.05 * dx},${leftNeck.y - 0.15 * dy} ${rightNeck.x},${rightNeck.y}`;
 
         const reversedRightPoints = rightTrunkPoints.slice().reverse();
         masterTrunkPath += buildScallopedSegment(reversedRightPoints, 0.015, false);
@@ -4555,93 +4578,6 @@ async function tryStations(primary, secondary, overrideHour) {
   }
 }
 
-
-/*async function loadSounding() {
-  const label   = document.getElementById('sounding-station');
-  const utcH= new Date().getUTCHours();
-  const prefer12zFallback = (utcH >= 12 && utcH < 18); // prefer ILX during 12–17z window due to DVN's historical 12z issues
-
-  try {
-    label.textContent = 'Fetching sounding…';
-    label.style.color = 'var(--muted)';
-
-    let result;
-    if (prefer12zFallback) {
-      result = await tryStations('ILX', 'DVN');
-      } else {
-      try {
-        result = await tryStations('DVN', 'ILX'); //I CHANGED DVN TO SGF
-        } catch (e) {
-        console.warn('18z DVN+ILX both failed, falling back to 12z ILX');
-        result = await tryStations('ILX', 'DVN', '12');
-      }
-    }
-
-    // Safe to use result.hour here — if tryStations threw, we're in catch
-    const now    = new Date();
-    //const runTag = `${String(now.getUTCMonth()+1).padStart(2,'0')}/${String(now.getUTCDate()).padStart(2,'0')} — ${result.hour}z`;
-    const runTag = `${result.hour}z`;
-
-    if (prefer12zFallback) {
-      const wasPreferred = result.station === 'ILX';
-      label.textContent = wasPreferred
-        ? `ILX - ${runTag}`
-        : `DVN - ${runTag}`;
-      label.style.color = wasPreferred ? '#ffb060' : 'var(--accent)';
-    } else {
-      const wasPreferred = result.station === 'DVN';
-      label.textContent = wasPreferred
-        ? `DVN - ${runTag}`
-        : `ILX - ${runTag}`;
-      label.style.color = wasPreferred ? 'var(--accent)' : '#ffb060';
-    }
-
-    const data = parseSPC(result.text);
-    if (!data || data.length === 0)
-      throw new Error('No valid levels parsed from ' + result.station);
-
-    //const data = parseSPC(result.text);
-    currentSoundingData = data;
-
-    // Set the best default parcel mode on initial load
-    function isValidParcel(result) {
-      if (!result) return false;
-      return !result.parcelPath.some(pt => {
-        if (pt.pres < 500) return false;
-        const env = data.reduce((closest, d) =>
-          Math.abs(d.pres - pt.pres) < Math.abs(closest.pres - pt.pres) ? d : closest
-        );
-        return !isNaN(env.dew) && pt.temp < env.dew;
-      });
-    }
-
-    const wxReady = WxTemp != null && WxDew != null && !isNaN(WxTemp) && !isNaN(WxDew);
-    const modeOrder = wxReady ? ['WX', 'SB', 'ML', 'MU'] : ['SB', 'ML', 'MU'];
-    const computeFns = {
-      WX: () => { parcelMode = 'WX'; return computeParcelPath(data); },
-      SB: () => { parcelMode = 'SB'; return computeParcelPath(data); },
-      ML: () => { parcelMode = 'ML'; return computeMLParcelPath(data); },
-      MU: () => { parcelMode = 'MU'; return computeMUParcelPath(data); },
-    };
-    for (const mode of modeOrder) {
-      const result = computeFns[mode]();
-      if (isValidParcel(result)) break;
-    }
-    updateParcelButtons();
-
-    plotSkewT(data);
-
-  } catch (e) {
-    label.textContent = 'Sounding unavailable';
-    label.style.color = '#ff6060';
-    console.error('Sounding error:', e);
-  }
-  // Wire up toolbar buttons
-  /*document.querySelectorAll('.snd-mode-btn').forEach(btn => {
-    btn.addEventListener('click', () => switchSPCLayer(btn));
-  });*
-}*/
-
 async function loadSounding() {
   const label = document.getElementById('sounding-station');
   if (!label) return;
@@ -4676,11 +4612,11 @@ async function loadSounding() {
 
     // --- RENDER TEXT LABELS ACCORDINGLY ---
     const runTag = `${result.hour}z`;
-    const tagSuffix = manualStationOverride ? '' : '';
     
     if (manualStationOverride) {
-      label.textContent = `${result.station} - ${runTag}${tagSuffix}`;
-      label.style.color = 'var(--accent)';
+      label.textContent = `${result.station} - ${runTag}`;
+      //label.style.color = 'var(--accent)';
+      label.style.color = '#00B90C';
     } else if (prefer12zFallback) {
       const wasPreferred = result.station === 'ILX';
       label.textContent = wasPreferred ? `ILX - ${runTag}` : `DVN - ${runTag}`;
@@ -4734,75 +4670,50 @@ async function loadSounding() {
 // SOUNDING MODAL INTERACTION LISTENERS
 // ==========================================
 const soundingModal = document.getElementById('sounding-selector-modal');
-const stationInput = document.getElementById('custom-station-input');
+const stationSelect = document.getElementById('custom-station-input');
 const hourSelect = document.getElementById('custom-hour-select');
 const submitBtn = document.getElementById('submit-custom-sounding');
 const cancelBtn = document.getElementById('cancel-custom-sounding');
 const errorMsg = document.getElementById('selector-error-msg');
 const soundingStationLabel = document.getElementById('sounding-station');
 
-// 1. Single Click: Open custom input window smoothly
+// 1. Single Click: Open selection overlay modal safely
 soundingStationLabel.addEventListener('click', (e) => {
   e.stopPropagation();
   if (errorMsg) errorMsg.textContent = '';
   
-  if (stationInput) {
-    stationInput.value = manualStationOverride || ''; 
-    
-    if (isTVMode) {
-      // IF ON A TV: Force the input box to block virtual keyboards, and auto-link the list!
-      stationInput.setAttribute('readonly', 'true');
-      stationInput.setAttribute('list', 'sounding-stations-list');
-      stationInput.placeholder = "Tap Arrow to Choose Station";
-      
-      if (listArrowToggle) {
-        listArrowToggle.style.color = 'var(--accent)';
-        listArrowToggle.textContent = '▲';
-      }
-    } else {
-      // IF ON A PC: Let the user type freely as normal
-      stationInput.removeAttribute('readonly');
-      stationInput.removeAttribute('list');
-      stationInput.placeholder = "Enter Station ID (e.g. OAX)";
-      if (listArrowToggle) {
-        listArrowToggle.style.color = 'var(--muted)';
-        listArrowToggle.textContent = '▼';
-      }
-    }
+  if (stationSelect) {
+    // Retain currently selected manual station if active, else reset to placeholder text
+    stationSelect.value = manualStationOverride || "";
   }
   
   if (soundingModal) soundingModal.style.display = 'flex';
-  if (stationInput) stationInput.focus();
 });
 
-// 2. Double Click: Drop the manual lock and restore automatic scheduling instantly
+// 2. Double Click: Wipe out the manual override block and restore standard auto scheduling loop
 soundingStationLabel.addEventListener('dblclick', (e) => {
   e.stopPropagation();
   manualStationOverride = null;
   manualHourOverride = null;
-  console.log("Resetting to default automatic sounding loop...");
+  console.log("Restoring automatic sounding routine cycle tracking...");
   loadSounding();
 });
 
-// 3. Dismiss Modal safely
+// 3. Dismiss Modal cleanly
 cancelBtn.addEventListener('click', () => {
   if (soundingModal) soundingModal.style.display = 'none';
 });
 
-// 4. Process Selection and Fetch
+// 4. Process Selection and Fetch Details
 submitBtn.addEventListener('click', async () => {
-  let rawValue = stationInput.value.trim();
+  if (!stationSelect || !hourSelect || !errorMsg) return;
   
-  // Extract just the 3-letter station ID code if they picked from an autocomplete list
-  if (rawValue.includes(' ')) {
-    rawValue = rawValue.split(' ')[0];
-  }
-  
-  const targetStation = rawValue.toUpperCase();
+  const targetStation = stationSelect.value;
   const targetHour = hourSelect.value;
   
-  if (targetStation.length !== 3) {
-    errorMsg.textContent = 'Please enter or select a valid 3-letter station ID.';
+  if (!targetStation) {
+    errorMsg.style.color = '#ff6060';
+    errorMsg.textContent = 'Please choose a station location from the list.';
     return;
   }
   
@@ -4825,7 +4736,7 @@ submitBtn.addEventListener('click', async () => {
       throw new Error('Data empty or station missing for this hour');
     }
     
-    // Success! Lock custom states and hide modal window
+    // Success: Apply states and update dashboard plot layout
     manualStationOverride = targetStation;
     manualHourOverride = targetHour;
     
@@ -4833,57 +4744,11 @@ submitBtn.addEventListener('click', async () => {
     await loadSounding();
     
   } catch (err) {
-    // Retain existing chart if the new custom request drops offline
     errorMsg.style.color = '#ff6060';
     errorMsg.textContent = 'Data unavailable at this time.';
     console.warn(`Validation failed for ${targetStation} at ${targetHour}Z:`, err.message);
   }
 });
-
-// 5. Submit easily via Enter key press
-stationInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') submitBtn.click();
-});
-
-const stationInputContainer = document.getElementById('custom-station-input');
-const listArrowToggle = document.getElementById('toggle-list-arrow');
-
-if (stationInputContainer && listArrowToggle) {
-  // Arrow Click Event: Toggle connecting or disconnecting the datalist options
-    listArrowToggle.addEventListener('click', (e) => {
-    e.stopPropagation();
-    
-    // If we're on a TV, the list is permanently locked open, so clicking the arrow can just clear the field
-    if (isTVMode) {
-      stationInputContainer.value = '';
-      return;
-    }
-    
-    const isLinked = stationInputContainer.hasAttribute('list');
-    if (isLinked) {
-      stationInputContainer.removeAttribute('list');
-      listArrowToggle.style.color = 'var(--muted)';
-      listArrowToggle.textContent = '▼';
-    } else {
-      stationInputContainer.setAttribute('list', 'sounding-stations-list');
-      listArrowToggle.style.color = 'var(--accent)';
-      listArrowToggle.textContent = '▲';
-      stationInputContainer.focus();
-    }
-  });
-
-  // Typing Input Event: Instantly close menu panel if user starts typing manually
-  stationInputContainer.addEventListener('input', () => {
-    // If we are on a TV, do absolutely nothing here so the list stays safely open
-    if (isTVMode) return;
-
-    if (stationInputContainer.hasAttribute('list')) {
-      stationInputContainer.removeAttribute('list');
-      listArrowToggle.style.color = 'var(--muted)';
-      listArrowToggle.textContent = '▼';
-    }
-  });
-}
 
 //document.getElementById('sounding-station').addEventListener('click', toggleCloudLayer);
 document.getElementById('cloud-overlay-btn').addEventListener('click', toggleCloudLayer);
