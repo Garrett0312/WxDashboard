@@ -716,6 +716,7 @@
     display: inline-block;
     white-space: nowrap;
     animation: scroll-left 120s linear infinite;
+    will-change: transform; /* promote to own compositor layer — reduces CPU repaints on TV GPUs */
   }
   @keyframes scroll-left {
     from { transform: translateX(100vw); }
@@ -731,6 +732,7 @@
     margin-right: 5px;
     animation: pulse 1.5s infinite;
     vertical-align: middle;
+    will-change: opacity, transform;
   }
   @keyframes pulse {
     0%,100% { opacity:1; transform:scale(1); }
@@ -1289,6 +1291,7 @@
 
       <div style="display: flex; gap: 8px; width: 90%; max-width: 320px; justify-content: center; margin-top: 2px;">
         <button id="submit-custom-sounding" style="flex: 1; font-family: 'Bebas Neue', sans-serif; font-size: 14px; letter-spacing: 1px; color: #fff; background: rgba(58,160,255,0.25); border: 1px solid var(--accent); padding: 6px; border-radius: 4px; cursor: pointer;">Load Dataset</button>
+        <button id="reset-auto-sounding" style="flex: 1; font-family: 'Bebas Neue', sans-serif; font-size: 14px; letter-spacing: 1px; color: #80e0a0; background: transparent; border: 1px solid #80e0a0; padding: 6px; border-radius: 4px; cursor: pointer;">↺ Auto</button>
         <button id="cancel-custom-sounding" style="flex: 1; font-family: 'Bebas Neue', sans-serif; font-size: 14px; letter-spacing: 1px; color: var(--muted); background: transparent; border: 1px solid var(--border); padding: 6px; border-radius: 4px; cursor: pointer;">Cancel</button>
       </div>
       
@@ -1318,6 +1321,8 @@
 // Global states to maintain manual override persistence
 let manualStationOverride = null;
 let manualHourOverride = null;
+let modelStationICAO = 'kcid'; 
+let isModelSoundingActive = false;
 
 const CLOUD_SVG_PATHS = {
   // REVISED: Cirrus Uncinus with distinct upward-curving hooks on the right-hand tips
@@ -1331,6 +1336,33 @@ const CLOUD_SVG_PATHS = {
   'Cu': "M 0.15,0.85 L 0.85,0.85 C 0.88,0.8 0.87,0.72 0.83,0.68 C 0.86,0.6 0.82,0.52 0.76,0.54 C 0.78,0.42 0.7,0.35 0.62,0.38 C 0.65,0.22 0.52,0.12 0.45,0.18 C 0.38,0.12 0.28,0.25 0.32,0.38 C 0.25,0.36 0.18,0.45 0.22,0.55 C 0.15,0.52 0.11,0.62 0.14,0.7 C 0.1,0.74 0.11,0.82 0.15,0.85 Z",
   'St': "M 0,0.1 L 1,0.1 L 1,0.9 L 0,0.9 Z",
   'Sc': "M 0,0.85 C 0.1,0.55 0.25,0.55 0.35,0.7 C 0.45,0.45 0.6,0.45 0.7,0.65 C 0.8,0.5 0.95,0.5 1,0.85 Z"
+};
+
+const SPC_STATION_COORDS = {
+  ABR: [45.45, -98.41],  APX: [44.91, -84.72],  ARX: [43.82, -91.19],
+  BIS: [46.77, -100.76], BMX: [33.17, -86.77],  BOI: [43.56, -116.21],
+  BRO: [25.90, -97.42],  BUF: [42.93, -78.73],  CHH: [41.66, -69.96],
+  CHS: [32.90, -80.04],  CRP: [27.77, -97.51],  CXW: [46.87, -68.02],
+  CYS: [41.15, -104.80], DNR: [39.75, -104.87], DTX: [42.70, -83.47],
+  DVN: [41.61, -90.58],  EPZ: [31.87, -106.70], EWX: [29.70, -98.02],
+  FFC: [33.36, -84.57],  FGZ: [35.23, -111.82], FWD: [32.83, -97.30],
+  GGW: [48.21, -106.62], GJT: [39.12, -108.53], GRB: [44.49, -88.13],
+  GSO: [36.10, -79.95],  GYM: [27.97, -110.92], GYX: [43.89, -70.26],
+  IAD: [38.98, -77.47],  ILN: [39.42, -83.82],  ILX: [40.15, -89.34],
+  JAN: [32.32, -90.08],  JAX: [30.49, -81.70],  KEY: [24.55, -81.75],
+  LBF: [41.13, -100.68], LCH: [30.12, -93.22],  LKN: [40.86, -115.73],
+  LSX: [38.70, -90.68],  LZK: [34.84, -92.26],  MAF: [31.94, -102.19],
+  MFL: [25.75, -80.43],  MFR: [42.37, -122.87], MHX: [34.78, -76.88],
+  MPX: [44.85, -93.56],  MQT: [46.53, -87.55],  MTY: [25.78, -100.30],
+  MYI: [51.27, -80.61],  NKX: [32.87, -117.14], OAK: [37.73, -122.22],
+  OAX: [41.32, -96.37],  OKX: [40.87, -72.86],  OUN: [35.18, -97.44],
+  PIT: [40.53, -80.23],  REV: [39.57, -119.80], RIW: [43.07, -108.48],
+  RNK: [37.20, -80.41],  SGF: [37.23, -93.40],  SHV: [32.45, -93.84],
+  SLC: [40.77, -111.97], SLE: [44.92, -122.99],  TAE: [30.39, -84.33],
+  TBW: [27.71, -82.40],  TFX: [47.46, -111.38], TOP: [39.07, -95.62],
+  TUS: [32.23, -110.88], UIL: [47.93, -124.56],  UNR: [44.07, -103.21],
+  VBG: [34.75, -120.57], VEF: [36.05, -115.18],  YNE: [54.00, -98.07],
+  YWG: [49.90, -97.23],
 };
 
 function getAmbientKeys() {
@@ -1517,6 +1549,19 @@ function updateClock() {
 setInterval(updateClock, 1000);
 updateClock();
 
+// Page Visibility API: pause the 1-second clock tick when the TV screen turns off
+// or the browser tab is hidden. This prevents unnecessary CPU/timer work during idle periods
+// and helps reduce memory pressure over long uptime on low-resource TV browsers.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    // Page is hidden — nothing to update visually, save CPU
+  } else {
+    // Page is visible again — immediately sync the clock so it's not stale
+    updateClock();
+    updateDate();
+  }
+});
+
 // ---- CLOCK DATE ----
 function updateDate() {
   const now = new Date();
@@ -1665,10 +1710,14 @@ let WxTemp = null;
 let WxDew = null;
 let sfcTemp = null;
 // ---- AMBIENT WEATHER ----
+let _ambientAbortCtrl = null;
 async function fetchAmbient() {
+  if (_ambientAbortCtrl) _ambientAbortCtrl.abort();
+  _ambientAbortCtrl = new AbortController();
+  const signal = _ambientAbortCtrl.signal;
   try {
     const { apiKey, appKey } = await getAmbientKeys();
-    const res = await fetch(`https://api.ambientweather.net/v1/devices?applicationKey=${appKey}&apiKey=${apiKey}`);
+    const res = await fetch(`https://api.ambientweather.net/v1/devices?applicationKey=${appKey}&apiKey=${apiKey}`, { signal });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const devices = await res.json();
     if (!devices.length) throw new Error('No devices found');
@@ -1731,6 +1780,7 @@ async function fetchAmbient() {
     //document.getElementById('last-updated').textContent = `${LAT}/${LON}: ` + new Date().toLocaleTimeString();
     document.getElementById('last-updated').textContent = `${Number(LAT).toFixed(2)}/${Number(LON).toFixed(2)}: ` + new Date().toLocaleTimeString();
   } catch(e) {
+    if (e.name === 'AbortError') return;
     document.getElementById('wx-loading').textContent = 'Station error: ' + e.message;
     console.error('Ambient Weather:', e);
   }
@@ -1906,15 +1956,20 @@ function getPrecipWindows(dayText, nightText) {
 
 
 // ---- FORECAST — NWS API----
+let _forecastAbortCtrl = null;
 async function fetchForecast() {
+  // Cancel any previous in-flight forecast fetch so stale requests don't pile up
+  // on slow connections (e.g. smart TV Wi-Fi).
+  if (_forecastAbortCtrl) _forecastAbortCtrl.abort();
+  _forecastAbortCtrl = new AbortController();
+  const signal = _forecastAbortCtrl.signal;
   try {
     // NWS requires a two-step lookup: gridpoint first, then forecast
-    const pointRes = await fetch(`https://api.weather.gov/points/${LAT},${LON}`);
+    const pointRes = await fetch(`https://api.weather.gov/points/${LAT},${LON}`, { signal });
     const pointData = await pointRes.json();
     const forecastUrl = pointData.properties.forecast;
-    //console.log(pointRes);
 
-    const fcRes = await fetch(forecastUrl);
+    const fcRes = await fetch(forecastUrl, { signal });
     const fcData = await fcRes.json();
     const periods = fcData.properties.periods;
 
@@ -2054,6 +2109,7 @@ async function fetchForecast() {
     
     document.getElementById('forecast-list').innerHTML = html;
   } catch(e) {
+    if (e.name === 'AbortError') return; // intentional cancel, not an error
     console.error(e);
     document.getElementById('forecast-list').innerHTML = '<div style="color:var(--muted);font-size:11px;padding:8px;">Forecast unavailable</div>';
   }
@@ -2412,32 +2468,6 @@ function drawSunArc() {
       ctx.fillStyle = 'rgba(30,40,60,0.9)';
       ctx.fill();
 
-      /*
-      // illum goes 0→1 as moon goes new→full
-      // terminator x offset: at 0% illum = fully dark, 50% = half lit, 100% = fully lit
-      // terminator is an ellipse whose x-radius scales from r (new, hidden) to 0 (quarter) to r (full, lit)
-      const termX = r * Math.abs(1 - 2 * moonPhase); // 0 at full, r at new/full edges
-
-      // Lit half — waxing = right side lit, waning = left side lit
-      const litLeft  = isWaxing ? mx : mx - r;
-      const litRight = isWaxing ? mx + r : mx;
-
-      // Fill the lit half rectangle
-      ctx.beginPath();
-      ctx.rect(isWaxing ? mx : mx - r, my - r, r, r * 2);
-      ctx.fillStyle = 'rgba(220,230,255,0.9)';
-      ctx.fill();
-
-      // Draw the terminator ellipse to carve out or add the correct shape
-      ctx.beginPath();
-      ctx.ellipse(mx, my, termX, r, 0, 0, Math.PI * 2);
-      // If waxing and < 50%: terminator cuts into lit side (dark ellipse)
-      // If waxing and > 50%: terminator adds to lit side (lit ellipse)
-      ctx.fillStyle = moonPhase < 0.5
-        ? (isWaxing ? 'rgba(30,40,60,0.9)' : 'rgba(220,230,255,0.9)')
-        : (isWaxing ? 'rgba(220,230,255,0.9)' : 'rgba(30,40,60,0.9)');
-      ctx.fill();*/
-
 
       // Waxing: right side lit. Waning: left side lit.
       // Step 1 — fill the lit semicircle (half rectangle, clipped to circle)
@@ -2461,33 +2491,6 @@ function drawSunArc() {
       ctx.ellipse(mx, my, termRx, r, 0, 0, Math.PI * 2);
       ctx.fillStyle = termIsDark ? 'rgba(30,40,60,0.9)' : 'rgba(220,230,255,0.9)';
       ctx.fill();
-/*
-      // termX: signed offset of the terminator ellipse centre from moon centre
-      // Waxing: terminator moves left (negative) as phase grows 0→1
-      // Waning: terminator moves right (positive) as phase shrinks 1→0
-      // At new moon (0): termX = ±r (fully covers lit half → all dark)
-      // At full moon (1): termX = 0  (terminator on centre line → all lit)
-      const termSign = isWaxing ? -1 : 1;
-      const termXOff = termSign * r * (1 - 2 * moonPhase); // signed offset
-
-      // Fill lit half (right for waxing, left for waning)
-      ctx.beginPath();
-      ctx.rect(isWaxing ? mx : mx - r, my - r, r, r * 2);
-      ctx.fillStyle = 'rgba(220,230,255,0.9)';
-      ctx.fill();
-
-      // The terminator ellipse x-radius (always non-negative)
-      const termRx = Math.abs(r * (1 - 2 * moonPhase));
-
-      // Draw the terminator ellipse at the signed offset position
-      // Before half: dark ellipse cuts into the lit semicircle (crescent)
-      // After half: lit ellipse extends across the dark side (gibbous)
-      ctx.beginPath();
-      ctx.ellipse(mx + termXOff, my, termRx, r, 0, 0, Math.PI * 2);
-      ctx.fillStyle = moonPhase < 0.5
-        ? 'rgba(30,40,60,0.9)'      // dark — crescent phase
-        : 'rgba(220,230,255,0.9)';  // lit  — gibbous phase
-      ctx.fill();*/
 
 
       ctx.restore();
@@ -4309,7 +4312,7 @@ function plotSkewT(data) {
     });
   });
 
-  Plotly.newPlot('skewt', [
+  const skewTTraces = [
     traceTemp, 
     traceDew, 
     ...(traceFrost ? [traceFrost] : []), 
@@ -4318,7 +4321,8 @@ function plotSkewT(data) {
     ...(showClouds ? cloudLabelTraces : []),
     traceTempLabel,
     traceDewLabel,
-  ], {
+  ];
+  const skewTLayout = {
     margin: { l: 40, r: 10, t: 10, b: 30 },
     paper_bgcolor: '#111720',
     plot_bgcolor: '#111720',
@@ -4344,8 +4348,18 @@ function plotSkewT(data) {
     shapes: [...(showClouds ? dynamicCloudShapes : []), ...isotherms, ...heightShapes],
     showlegend: false,
     annotations: heightLabels,
-  },
-  { displayModeBar: false, responsive: false, staticPlot: false });
+  };
+  const skewTConfig = { displayModeBar: false, responsive: false, staticPlot: false };
+
+  // Use Plotly.react instead of Plotly.newPlot to reuse the existing plot instance.
+  // newPlot creates a brand-new chart every call and leaks the old SVG/canvas in memory —
+  // a significant source of crashes on low-RAM devices like TCL smart TVs.
+  const skewTEl = document.getElementById('skewt');
+  if (skewTEl && skewTEl.data) {
+    Plotly.react('skewt', skewTTraces, skewTLayout, skewTConfig);
+  } else {
+    Plotly.newPlot('skewt', skewTTraces, skewTLayout, skewTConfig);
+  }
 
   setTimeout(() => {
     drawHodograph(data);
@@ -4662,9 +4676,26 @@ const cancelBtn = document.getElementById('cancel-custom-sounding');
 const errorMsg = document.getElementById('selector-error-msg');
 const soundingStationLabel = document.getElementById('sounding-station');
 
+document.getElementById('reset-auto-sounding').addEventListener('click', () => {
+  manualStationOverride = null;
+  manualHourOverride = null;
+  if (soundingModal) soundingModal.style.display = 'none';
+  loadSounding();
+});
+
 // 1. Single Click: Open selection overlay modal safely
 soundingStationLabel.addEventListener('click', (e) => {
   e.stopPropagation();
+
+  if (isModelSoundingActive) {
+    // In model mode: prompt for a new ICAO instead of opening the obs station modal
+    const input = prompt('Enter ICAO identifier (3–4 chars, e.g. KORD, KOMA, CID):', modelStationICAO.toUpperCase());
+    if (input && input.trim().length >= 3) {
+      loadModelSounding(input.trim());
+    }
+    return;
+  }
+
   if (errorMsg) errorMsg.textContent = '';
   
   if (stationSelect) {
@@ -5286,6 +5317,7 @@ async function getMultiDayRisks() {
 
 
 function loadObsSounding() {
+  isModelSoundingActive = false;
   document.querySelector('#sounding .section-title').textContent = 'Upper Air Sounding';
   document.querySelector('#sounding .section-title').onclick = () => loadModelSounding();
   loadSounding();
@@ -5293,6 +5325,11 @@ function loadObsSounding() {
 
 // ---- RAP MODEL SOUNDING (BUFKIT) — loads on click of "Upper Air Sounding" title ----
 async function loadModelSounding() {
+  if (icao) {
+    const cleaned = icao.trim().toUpperCase();
+    modelStationICAO = (cleaned.length === 3 ? 'K' + cleaned : cleaned).toLowerCase();
+  }
+  isModelSoundingActive = true;
   const label = document.getElementById('sounding-station');
   label.textContent = 'Fetching model data…';
   label.style.color = 'var(--muted)';
@@ -5314,7 +5351,8 @@ async function loadModelSounding() {
     //const url  = `https://corsproxy.io/?url=https://www.meteo.psu.edu/bufkit/data/${model}/20/${model}_kcid.buf`;
     //const url  = `https://corsproxy.io/?url=https://www.meteo.psu.edu/bufkit/data/${model.toUpperCase()}/${hStr}/${model.toLowerCase()}_kcid.buf`;
     //const url  = `https://corsproxy.io/?url=https://www.meteo.psu.edu/bufkit/data/RAP/${hStr}/rap_kcid.buf`;
-    const url = `https://corsproxy.io/?url=https://metfs1.agron.iastate.edu/data/bufkit/${model.toLowerCase()}/${model.toLowerCase()}_kcid.buf`; // alternative RAP source that seems more reliable for KCID
+    //const url = `https://corsproxy.io/?url=https://metfs1.agron.iastate.edu/data/bufkit/${model.toLowerCase()}/${model.toLowerCase()}_kcid.buf`; // alternative RAP source that seems more reliable for KCID
+    const url = `https://corsproxy.io/?url=https://metfs1.agron.iastate.edu/data/bufkit/${model.toLowerCase()}/${model.toLowerCase()}_${modelStationICAO}.buf`;
     try {
       const res = await fetch(url);
       if (!res.ok) continue;
@@ -5343,7 +5381,8 @@ async function loadModelSounding() {
 
   currentSoundingData = data;
   //label.textContent   = `RAP KCID — ${usedHour}z`;
-  label.textContent   = `CID - ${usedHour}z`;
+  //label.textContent   = `CID - ${usedHour}z`;
+   label.textContent = `${modelStationICAO.toUpperCase()} - ${usedHour}z`;
   document.querySelector('#sounding .section-title').textContent = `${model} Model Sounding`;
   document.querySelector('#sounding .section-title').onclick = () => loadObsSounding();
   label.style.color   = '#c084fc'; // purple to distinguish from obs
@@ -5602,12 +5641,10 @@ setInterval(fetchSun,       60 * 60 * 1000);
 setInterval(() => {location.reload(true);}, 1 * 60 * 60 * 1000);
 */
 
-// Auto-reload every hour and force-clear cache
-setInterval(() => {
-    const url = new URL(window.location.href);
-    url.searchParams.set('t', Date.now()); // Adds a unique timestamp like ?t=1711554600000
-    window.location.href = url.toString();
-}, 1.5 * 60 * 60 * 1000);
+// Auto-reload every 55 minutes to clear accumulated memory before the TV browser crashes.
+// Using location.reload() instead of href manipulation avoids growing the history stack
+// with cache-busting ?t= params (each navigation creates a new history entry on many TV browsers).
+setInterval(() => { location.reload(true); }, 55 * 60 * 1000);
 
 </script>
 </body>
