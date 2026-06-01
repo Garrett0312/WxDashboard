@@ -5783,7 +5783,7 @@ async function loadModelSounding(icao = null) {
   //label.textContent   = `RAP KCID — ${usedHour}z`;
   //label.textContent   = `CID - ${usedHour}z`;
    label.textContent = `${modelStationICAO.toUpperCase()} - ${usedHour}z`;
-  document.querySelector('#sounding .section-title').textContent = `${model} Model Sounding`;
+  document.querySelector('#sounding .section-title').textContent = `${model} Sounding`;
   document.querySelector('#sounding .section-title').onclick = () => loadObsSounding();
   label.style.color   = '#c084fc'; // purple to distinguish from obs
 
