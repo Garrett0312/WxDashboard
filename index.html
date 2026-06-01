@@ -648,6 +648,31 @@
     background-color: var(--panel2);
     outline: none;
   }
+
+  #model-toggle-btn {
+    display: none;
+    position: absolute;
+    bottom: 8px;
+    left: 30px;
+    z-index: 100;
+    background-color: var(--panel);
+    color: #c084fc;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px 4px;
+    font-size: 12px;
+    cursor: pointer;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.4);
+    transition: all 0.2s ease;
+    font-family: 'Bebas Neue', sans-serif;
+    letter-spacing: 1px;
+  }
+
+  #model-toggle-btn:hover {
+    box-shadow: 0 0 8px rgba(58,160,255,0.4);
+    background-color: var(--panel2);
+    outline: none;
+  }
   #sounding-img {
     /*transform: scale(1.26);
     transform-origin: left top;*/
@@ -1299,6 +1324,7 @@
   </div>
 
   <button id="cloud-overlay-btn">☁</button>
+  <button id="model-toggle-btn" onclick="toggleModel()">RAP</button>
   
   <div class="snd-header" style="flex-wrap:wrap; gap: 0px 2px">
     <div class="section-title" style="margin:0;cursor:pointer;text-decoration:underline dotted;" title="Click to load a modeled sounding (KCID)" onclick="loadModelSounding()">Upper Air Sounding</div>
@@ -3423,7 +3449,7 @@ function plotSkewT(data) {
   const P_LCL_wx    = parcelResult?.P_LCL ?? 0;
   
   // Extract optimized, de-congested layers 
-  const { shapes: cloudShapes, layers: cloudLayers } = estimateCloudLayers(wxAdjustedData(data, P_LCL_wx));
+  //const { shapes: cloudShapes, layers: cloudLayers } = estimateCloudLayers(wxAdjustedData(data, P_LCL_wx));
 
   const P0 = 1000;            
   const skewAngleDeg = 35;    
@@ -3497,10 +3523,126 @@ function plotSkewT(data) {
       line: { color: 'rgba(255,255,255,0.2)', width: 1 , dash: 'dot'}
     });
   }
-
+  /*
   let parcelTraces = [];
   const activeParcelType = parcelType;
-  let CAPE = 0; // Global reference placeholder for layout tracking
+  let CAPE = 0; // Global reference placeholder for layout tracking*/
+  let parcelTraces = [];
+  const activeParcelType = parcelType;
+  let CAPE = 0; // Will be computed from parcel path below
+  let CIN = 0;
+
+  // ---- PRE-COMPUTE CAPE so cloud classification has the real value ----
+  if (parcelResult) {
+    const { parcelPath } = parcelResult;
+    const P0c = 1000;
+    const skewAngleDegC = 35;
+    const skewAngleC = skewAngleDegC * Math.PI / 180;
+    const scaleFactorC = 40;
+
+    for (let i = 0; i < parcelPath.length - 1; i++) {
+      const P1 = parcelPath[i].pres;
+      const P2 = parcelPath[i + 1].pres;
+      if (P1 <= parcelResult.P_LCL && P2 <= parcelResult.P_LCL) {
+        const skewOff1 = Math.log(P0c / P1) * Math.tan(skewAngleC) * scaleFactorC;
+        const skewOff2 = Math.log(P0c / P2) * Math.tan(skewAngleC) * scaleFactorC;
+        const env1 = data.reduce((c, d) => Math.abs(d.pres - P1) < Math.abs(c.pres - P1) ? d : c);
+        const env2 = data.reduce((c, d) => Math.abs(d.pres - P2) < Math.abs(c.pres - P2) ? d : c);
+        const tParcel1 = parcelPath[i].temp;
+        const tParcel2 = parcelPath[i + 1].temp;
+        const tEnv1 = env1.temp;
+        const tEnv2 = env2.temp;
+        if (tParcel1 > tEnv1 || tParcel2 > tEnv2) {
+          const TvP1 = tParcel1 + 273.15, TvP2 = tParcel2 + 273.15;
+          const TvE1 = tEnv1    + 273.15, TvE2 = tEnv2    + 273.15;
+          const b1 = 9.81 * (TvP1 - TvE1) / TvE1;
+          const b2 = 9.81 * (TvP2 - TvE2) / TvE2;
+          const TvAvg = (TvP1 + TvP2) / 2;
+          const dz = (287.05 * TvAvg / 9.81) * Math.log(P1 / P2);
+          CAPE += ((b1 + b2) / 2) * dz;
+        }
+      }
+    }
+    CAPE = Math.max(0, Math.round(CAPE));
+    
+    // ---- CIN: integrate negative buoyancy from surface to LFC only ----
+      let CIN = 0;
+      let reachedLFC = false;
+      for (let i = 0; i < parcelPath.length - 1; i++) {
+        const P1 = parcelPath[i].pres;
+        const P2 = parcelPath[i + 1].pres;
+
+        const env1 = data.reduce((c, d) => Math.abs(d.pres - P1) < Math.abs(c.pres - P1) ? d : c);
+        const env2 = data.reduce((c, d) => Math.abs(d.pres - P2) < Math.abs(c.pres - P2) ? d : c);
+
+        const tParcel1 = parcelPath[i].temp, tParcel2 = parcelPath[i + 1].temp;
+        const tEnv1    = env1.temp,           tEnv2    = env2.temp;
+
+        // Stop at LFC — first level where parcel becomes warmer than environment above LCL
+        if (tParcel1 >= tEnv1 && P1 <= parcelResult.P_LCL) {
+          reachedLFC = true;
+        }
+        if (reachedLFC) break;
+
+        if (tParcel1 < tEnv1 || tParcel2 < tEnv2) {
+          const TvP1 = tParcel1 + 273.15, TvP2 = tParcel2 + 273.15;
+          const TvE1 = tEnv1    + 273.15, TvE2 = tEnv2    + 273.15;
+          const b1n = Math.min(9.81 * (TvP1 - TvE1) / TvE1, 0);
+          const b2n = Math.min(9.81 * (TvP2 - TvE2) / TvE2, 0);
+          const TvAvg = (TvP1 + TvP2) / 2;
+          const dz = (287.05 * TvAvg / 9.81) * Math.log(P1 / P2);
+          CIN += ((b1n + b2n) / 2) * dz;
+        }
+      }
+      CIN = Math.round(CIN); // negative number, e.g. -87
+
+      // ---- LOW-LEVEL CAPE (0-3km AGL) ----
+      // Find surface height first
+      const sfcLevel = data.reduce((a, b) => a.pres > b.pres ? a : b);
+      const sfcHgt   = sfcLevel.hght ?? 0;
+      const ceil3km  = sfcHgt + 3000; // 3km AGL in meters
+
+      let CAPE03 = 0;
+      for (let i = 0; i < parcelPath.length - 1; i++) {
+        const P1 = parcelPath[i].pres;
+        const P2 = parcelPath[i + 1].pres;
+
+        // Only integrate above LCL (parcel must be saturated to have positive buoyancy)
+        if (P1 > parcelResult.P_LCL) continue;
+
+        // Find matching env levels to get heights
+        const env1 = data.reduce((c, d) => Math.abs(d.pres - P1) < Math.abs(c.pres - P1) ? d : c);
+        const env2 = data.reduce((c, d) => Math.abs(d.pres - P2) < Math.abs(c.pres - P2) ? d : c);
+
+        const h1 = env1.hght ?? (sfcHgt + 8000 * Math.log(sfcLevel.pres / P1));
+        const h2 = env2.hght ?? (sfcHgt + 8000 * Math.log(sfcLevel.pres / P2));
+
+        // Stop once we've passed 3km AGL
+        if (h1 >= ceil3km) break;
+
+        const tParcel1 = parcelPath[i].temp,     tParcel2 = parcelPath[i + 1].temp;
+        const tEnv1    = env1.temp,               tEnv2    = env2.temp;
+
+        // Only count positive buoyancy
+        if (tParcel1 > tEnv1 || tParcel2 > tEnv2) {
+          const TvP1 = tParcel1 + 273.15, TvP2 = tParcel2 + 273.15;
+          const TvE1 = tEnv1    + 273.15, TvE2 = tEnv2    + 273.15;
+          const b1p = Math.max(9.81 * (TvP1 - TvE1) / TvE1, 0);
+          const b2p = Math.max(9.81 * (TvP2 - TvE2) / TvE2, 0);
+          const TvAvg = (TvP1 + TvP2) / 2;
+          // Clamp dz so we don't integrate past 3km
+          const h2clamped = Math.min(h2, ceil3km);
+          const dz = h2clamped - h1;
+          CAPE03 += ((b1p + b2p) / 2) * dz;
+        }
+      }
+      CAPE03 = Math.max(0, Math.round(CAPE03));
+    
+      //console.log(`[Sounding] ${activeParcelType} CAPE: ${CAPE} J/kg | CIN: ${CIN} J/kg | 0-3km CAPE: ${CAPE03} J/kg`);
+  }
+
+  // NOW call estimateCloudLayers with CAPE already known
+  const { shapes: cloudShapes, layers: cloudLayers } = estimateCloudLayers(wxAdjustedData(data, P_LCL_wx));
 
   // Cloud type classification rule matrix
   function classifyCloudType(layer, currentCAPE, P_LCL) {
@@ -3548,7 +3690,7 @@ function plotSkewT(data) {
       document.getElementById('skewt').appendChild(capeEl);
     }
     capeEl.style.cssText = `
-      position: absolute; bottom: 150px; right: 8px; z-index: 20;
+      position: absolute; top: 130px; right: 8px; z-index: 20;
       font-family: 'IBM Plex Mono', monospace; font-size: 11px;
       text-align: right; pointer-events: none; line-height: 1.6;
     `;
@@ -3648,16 +3790,61 @@ function plotSkewT(data) {
         }
       }
       CAPE = Math.max(0, Math.round(CAPE));
+      
+      // ---- CIN: integrate negative buoyancy from surface to LFC only ----
+      let reachedLFC = false;
+      for (let i = 0; i < parcelPath.length - 1; i++) {
+        const P1 = parcelPath[i].pres;
+        const P2 = parcelPath[i + 1].pres;
+
+        const env1 = data.reduce((c, d) => Math.abs(d.pres - P1) < Math.abs(c.pres - P1) ? d : c);
+        const env2 = data.reduce((c, d) => Math.abs(d.pres - P2) < Math.abs(c.pres - P2) ? d : c);
+
+        const tParcel1 = parcelPath[i].temp,     tParcel2 = parcelPath[i + 1].temp;
+        const tEnv1    = env1.temp,               tEnv2    = env2.temp;
+
+        // Stop at LFC — the first level where parcel becomes warmer than environment
+        if (tParcel1 >= tEnv1 && P1 <= parcelResult.P_LCL) {
+          reachedLFC = true;
+        }
+        if (reachedLFC) break;
+
+        if (tParcel1 < tEnv1 || tParcel2 < tEnv2) {
+          const TvP1 = tParcel1 + 273.15, TvP2 = tParcel2 + 273.15;
+          const TvE1 = tEnv1    + 273.15, TvE2 = tEnv2    + 273.15;
+          const b1n = Math.min(9.81 * (TvP1 - TvE1) / TvE1, 0);
+          const b2n = Math.min(9.81 * (TvP2 - TvE2) / TvE2, 0);
+          const TvAvg = (TvP1 + TvP2) / 2;
+          const dz = (287.05 * TvAvg / 9.81) * Math.log(P1 / P2);
+          CIN += ((b1n + b2n) / 2) * dz;
+        }
+      }
+      CIN = Math.round(CIN); // will be 0 or negative
 
       const capeColor = CAPE > 2500 ? '#ff4444'
                       : CAPE > 1000 ? '#ffaa00'
                       : CAPE > 500  ? '#ffd43b'
                       : CAPE > 0    ? '#80e0a0'
                       : 'var(--muted)';
-                      
+        
+      /*
       capeEl.innerHTML = `<span style="color:var(--muted);font-size:9px;letter-spacing:1px;">${activeParcelType} CAPE</span><br>
         <span style="color:${capeColor};font-size:16px;font-weight:500;">${CAPE}</span>
-        <span style="color:var(--muted);font-size:9px;">J/kg</span>`;
+        <span style="color:var(--muted);font-size:9px;">J/kg</span>`;*/
+      const cinColor = CIN < -150 ? '#ff4444'
+                     : CIN < -50  ? '#ffaa00'
+                     : CIN < 0    ? '#ffd43b'
+                     : 'var(--muted)';
+
+      const cinHTML = CAPE > 0 ? `
+        <br><span style="color:var(--muted);font-size:9px;letter-spacing:1px;">CIN</span><br>
+        <span style="color:${cinColor};font-size:16px;font-weight:500;">${CIN}</span>
+        <span style="color:var(--muted);font-size:9px;">J/kg</span>` : '';
+
+      capeEl.innerHTML = `
+        <span style="color:var(--muted);font-size:9px;letter-spacing:1px;">${activeParcelType} CAPE</span><br>
+        <span style="color:${capeColor};font-size:16px;font-weight:500;">${CAPE}</span>
+        <span style="color:var(--muted);font-size:9px;">J/kg</span>${cinHTML}`;
 
       parcelTraces = [...capeTraces, traceParcel];
 
@@ -3758,6 +3945,40 @@ function plotSkewT(data) {
       optimizedLayers.push(layer);
     }
   });
+
+  // ---- SYNTHETIC CONVECTIVE LAYER ----
+  if (parcelResult && CAPE > 200 && CIN > -50) {
+    const P_LCL = parcelResult.P_LCL;
+
+    let EL = P_LCL - 100;
+    if (parcelResult.parcelPath) {
+      const buoyant = parcelResult.parcelPath.filter(pt => {
+        if (pt.pres >= P_LCL) return false;
+        const env = data.reduce((c, d) =>
+          Math.abs(d.pres - pt.pres) < Math.abs(c.pres - pt.pres) ? d : c);
+        return pt.temp >= env.temp;
+      });
+      if (buoyant.length > 0) EL = Math.min(...buoyant.map(pt => pt.pres));
+    }
+
+    const syntheticType = CAPE > 1000 ? 'Cb' : 'Cu';
+
+    const alreadyHasConvective = optimizedLayers.some(l =>
+      (l.cloudType === 'Cu' || l.cloudType === 'Cb') && l.pBase >= P_LCL * 0.85
+    );
+
+    if (!alreadyHasConvective) {
+      optimizedLayers.push({
+        pBase: P_LCL,
+        pTop:  EL,
+        pMid:  Math.pow(10, (Math.log10(P_LCL) + Math.log10(EL)) / 2),
+        cover: CAPE > 1000 ? 0.90 : 0.60,
+        minDepression: 2,
+        minDepressionT: 15,
+        cloudType: syntheticType,
+      });
+    }
+  }
 
   // =================================================================
   // NEW FIX: CONSOLIDATE MULTIPLE Cb LAYERS FIRST (Safe mutation setup)
@@ -5481,7 +5702,22 @@ function loadObsSounding() {
   isModelSoundingActive = false;
   document.querySelector('#sounding .section-title').textContent = 'Upper Air Sounding';
   document.querySelector('#sounding .section-title').onclick = () => loadModelSounding();
+  const modelBtn = document.getElementById('model-toggle-btn');
+  if (modelBtn) modelBtn.style.display = 'none';
   loadSounding();
+}
+
+
+let currentModel = 'RAP';
+
+function toggleModel() {
+  currentModel = currentModel === 'RAP' ? 'HRRR' : 'RAP';
+  const btn = document.getElementById('model-toggle-btn');
+  if (btn) {
+    btn.textContent = currentModel;
+    btn.style.color = currentModel === 'HRRR' ? '#ffaa00' : '#c084fc';
+  }
+  if (isModelSoundingActive) loadModelSounding();
 }
 
 // ---- RAP MODEL SOUNDING (BUFKIT) — loads on click of "Upper Air Sounding" title ----
@@ -5504,7 +5740,9 @@ async function loadModelSounding(icao = null) {
   let text = null;
   let usedHour = null;
   let BestTime = null;
-  const model = "RAP"; // "HRRR" or "RAP" if you want to try that instead (but it's often unavailable for KCID)
+  const model = currentModel; // "HRRR" or "RAP" if you want to try that instead (but it's often unavailable for KCID)
+
+  
 
   for (const h of hoursToTry) {
     const hStr = String(h).padStart(2, '0');
@@ -5548,6 +5786,9 @@ async function loadModelSounding(icao = null) {
   document.querySelector('#sounding .section-title').textContent = `${model} Model Sounding`;
   document.querySelector('#sounding .section-title').onclick = () => loadObsSounding();
   label.style.color   = '#c084fc'; // purple to distinguish from obs
+
+  const modelBtn = document.getElementById('model-toggle-btn');
+  if (modelBtn) modelBtn.style.display = 'block';
 
   // Re-run parcel selection and plot
   const wxReady = WxTemp != null && WxDew != null && !isNaN(WxTemp) && !isNaN(WxDew);
