@@ -1323,6 +1323,7 @@ let manualStationOverride = null;
 let manualHourOverride = null;
 let modelStationICAO = 'kcid'; 
 let isModelSoundingActive = false;
+//window.loadModelSounding = loadModelSounding;
 
 const CLOUD_SVG_PATHS = {
   // REVISED: Cirrus Uncinus with distinct upward-curving hooks on the right-hand tips
@@ -4669,7 +4670,6 @@ async function loadSounding() {
 // SOUNDING MODAL INTERACTION LISTENERS
 // ==========================================
 const soundingModal = document.getElementById('sounding-selector-modal');
-const stationSelect = document.getElementById('custom-station-input');
 const hourSelect = document.getElementById('custom-hour-select');
 const submitBtn = document.getElementById('submit-custom-sounding');
 const cancelBtn = document.getElementById('cancel-custom-sounding');
@@ -4680,58 +4680,216 @@ document.getElementById('reset-auto-sounding').addEventListener('click', () => {
   manualStationOverride = null;
   manualHourOverride = null;
   if (soundingModal) soundingModal.style.display = 'none';
+  removeTVKeyboard(); // Clean up if open
   loadSounding();
 });
 
-// 1. Single Click: Open selection overlay modal safely
-soundingStationLabel.addEventListener('click', (e) => {
-  e.stopPropagation();
+// Helper: Safely clean up and remove the TV grid from the modal DOM
+function removeTVKeyboard() {
+  const existingKbd = document.getElementById('tv-virtual-keyboard');
+  if (existingKbd) existingKbd.remove();
+}
 
-  if (isModelSoundingActive) {
-    // In model mode: prompt for a new ICAO instead of opening the obs station modal
-    const input = prompt('Enter ICAO identifier (3–4 chars, e.g. KORD, KOMA, CID):', modelStationICAO.toUpperCase());
-    if (input && input.trim().length >= 3) {
-      loadModelSounding(input.trim());
+// Helper: Dynamically builds the high-contrast on-screen keyboard grid
+function injectTVKeyboard(targetInput) {
+  removeTVKeyboard(); // Prevent double injection
+
+  const kbdContainer = document.createElement('div');
+  kbdContainer.id = 'tv-virtual-keyboard';
+  kbdContainer.style.cssText = "display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; width: 90%; max-width: 340px; margin-top: 10px; padding: 4px;";
+
+  // Layout keys: A-Z, Backspace (⌫), and Clear (X)
+  const keys = [
+    'A','B','C','D','E','F','G',
+    'H','I','J','K','L','M','N',
+    'O','P','Q','R','S','T','U',
+    'V','W','X','Y','Z','⌫','CLR'
+  ];
+
+  keys.forEach(key => {
+    const btn = document.createElement('button');
+    btn.textContent = key;
+    btn.type = 'button'; // Prevent form submittals
+    
+    // Style matches your dashboard's high-contrast theme
+    btn.style.cssText = "background: var(--panel); border: 1px solid var(--border); color: #fff; font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 500; padding: 8px 0; border-radius: 4px; cursor: pointer; text-align: center; transition: background 0.1s;";
+    
+    // Simple focus visual effects for directional TV remotes
+    btn.onfocus = () => btn.style.background = 'rgba(58,160,255,0.2)';
+    btn.onblur = () => btn.style.background = 'var(--panel)';
+    
+    // Specific coloring for actions
+    if (key === '⌫' || key === 'CLR') {
+      btn.style.color = '#ff6060';
+      btn.style.borderColor = 'rgba(255,96,96,0.3)';
     }
-    return;
+
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      if (key === 'CLR') {
+        targetInput.value = '';
+      } else if (key === '⌫') {
+        targetInput.value = targetInput.value.slice(0, -1);
+      } else {
+        // Enforce max 4 characters for ICAO codes
+        if (targetInput.value.length < 4) {
+          targetInput.value += key;
+        }
+      }
+    });
+
+    kbdContainer.appendChild(btn);
+  });
+
+  // Inject the keyboard right above the error message block inside your modal
+  if (errorMsg) {
+    errorMsg.parentNode.insertBefore(kbdContainer, errorMsg);
+  }
+}
+
+// Helper function to swap between a dropdown select and a text input box
+function convertStationInputElement(toTextInput) {
+  let element = document.getElementById('custom-station-input');
+  if (!element) return null;
+
+  if (toTextInput && element.tagName === 'INPUT') return element;
+  if (!toTextInput && element.tagName === 'SELECT') return element;
+
+  let newElement;
+  if (toTextInput) {
+    newElement = document.createElement('input');
+    newElement.type = 'text';
+    newElement.placeholder = "ENTER ICAO";
+    
+    // CRITICAL: Prevent smart TV OS virtual keyboards from capturing focus
+    newElement.setAttribute('inputmode', 'none');
+    newElement.setAttribute('readonly', 'true');
+  } else {
+    newElement = document.createElement('select');
+    
+    const defOpt = document.createElement('option');
+    defOpt.value = "";
+    defOpt.disabled = true;
+    defOpt.selected = true;
+    defOpt.textContent = "Select a Station...";
+    newElement.appendChild(defOpt);
+
+    const stations = [
+      { v: "ABR", t: "ABR - Aberdeen, SD" }, { v: "ALB", t: "ALB - Albany, NY" },
+      { v: "AMA", t: "AMA - Amarillo, TX" }, { v: "APX", t: "APX - Gaylord, MI" },
+      { v: "ARX", t: "ARX - La Crosse, WI" }, { v: "BIS", t: "BIS - Bismarck, ND" },
+      { v: "BMX", t: "BMX - Birmingham, AL" }, { v: "BOI", t: "BOI - Boise, ID" },
+      { v: "BRO", t: "BRO - Brownsville, TX" }, { v: "BUF", t: "BUF - Buffalo, NY" },
+      { v: "CHH", t: "CHH - Chatham, MA" }, { v: "CHS", t: "CHS - Charleston, SC" },
+      { v: "CRP", t: "CRP - Corpus Christi, TX" }, { v: "CXW", t: "CXW - Caribou, ME" },
+      { v: "CYS", t: "CYS - Cheyenne, WY" }, { v: "DNR", t: "DNR - Denver, CO" },
+      { v: "DTX", t: "DTX - Detroit, MI" }, { v: "DVN", t: "DVN - Davenport, IA" },
+      { v: "EPZ", t: "EPZ - El Paso, TX" }, { v: "EWX", t: "EWX - Austin/San Antonio, TX" },
+      { v: "FFC", t: "FFC - Peachtree City/Atlanta, GA" }, { v: "FGZ", t: "FGZ - Flagstaff, AZ" },
+      { v: "FWD", t: "FWD - Dallas/Fort Worth, TX" }, { v: "GGW", t: "GGW - Glasgow, MT" },
+      { v: "GJT", t: "GJT - Grand Junction, CO" }, { v: "GRB", t: "GRB - Green Bay, WI" },
+      { v: "GSO", t: "GSO - Greensboro, NC" }, { v: "GYM", t: "GYM - Guaymas, SON" },
+      { v: "GYX", t: "GYX - Gray, ME" }, { v: "IAD", t: "IAD - Sterling/Washington, VA" },
+      { v: "ILN", t: "ILN - Wilmington, OH" }, { v: "ILX", t: "ILX - Lincoln, IL" },
+      { v: "JAN", t: "JAN - Jackson, MS" }, { v: "JAX", t: "JAX - Jacksonville, FL" },
+      { v: "KEY", t: "KEY - Key West, FL" }, { v: "LBF", t: "LBF - North Platte, NE" },
+      { v: "LCH", t: "LCH - Lake Charles, LA" }, { v: "LKN", t: "LKN - Elko, NV" },
+      { v: "LSX", t: "LSX - St. Louis, MO" }, { v: "LZK", t: "LZK - Little Rock, AR" },
+      { v: "MAF", t: "MAF - Midland/Odessa, TX" }, { v: "MFL", t: "MFL - Miami, FL" },
+      { v: "MFR", t: "MFR - Medford, OR" }, { v: "MHX", t: "MHX - Newport/Morehead City, NC" },
+      { v: "MPX", t: "MPX - Minneapolis, MN" }, { v: "MQT", t: "MQT - Marquette, MI" },
+      { v: "MTY", t: "MTY - Monterrey, NL" }, { v: "MYI", t: "MYI - Maniworki, QC" },
+      { v: "NKX", t: "NKX - San Diego, CA" }, { v: "OAK", t: "OAK - Oakland, CA" },
+      { v: "OAX", t: "OAX - Omaha, NE" }, { v: "OKX", t: "OKX - New York City, NY" },
+      { v: "OUN", t: "OUN - Norman, OK" }, { v: "PIT", t: "PIT - Pittsburgh, PA" },
+      { v: "REV", t: "REV - Reno, NV" }, { v: "RIW", t: "RIW - Riverton, WY" },
+      { v: "RNK", t: "RNK - Blacksburg, VA" }, { v: "SGF", t: "SGF - Springfield, MO" },
+      { v: "SHV", t: "SHV - Shreveport, LA" }, { v: "SLC", t: "SLC - Salt Lake City, UT" },
+      { v: "SLE", t: "SLE - Salem, OR" }, { v: "TAE", t: "TAE - Tallahassee, FL" },
+      { v: "TBW", t: "TBW - Tampa Bay, FL" }, { v: "TFX", t: "TFX - Great Falls, MT" },
+      { v: "TOP", t: "TOP - Topeka, KS" }, { v: "TUS", t: "TUS - Tucson, AZ" },
+      { v: "UIL", t: "UIL - Quillayute, WA" }, { v: "UNR", t: "UNR - Rapid City, SD" },
+      { v: "VBG", t: "VBG - Vandenberg AFB, CA" }, { v: "VEF", t: "VEF - Las Vegas, NV" },
+      { v: "YNE", t: "YNE - Norway House, MB" }, { v: "YWG", t: "YWG - Winnipeg, MB" }
+    ];
+
+    stations.forEach(st => {
+      const opt = document.createElement('option');
+      opt.value = st.v;
+      opt.textContent = st.t;
+      newElement.appendChild(opt);
+    });
   }
 
+  newElement.id = 'custom-station-input';
+  newElement.style.cssText = "flex: 1; background: var(--panel2); border: 1px solid var(--border); color: #fff; font-family: 'IBM Plex Sans', sans-serif; font-size: 14px; padding: 6px 10px; border-radius: 4px; outline: none; cursor: pointer; max-width: 220px; text-align: center;";
+
+  element.parentNode.replaceChild(newElement, element);
+  return newElement;
+}
+
+// 1. Single Click: Open selection overlay modal safely for BOTH obs and model modes
+soundingStationLabel.addEventListener('click', (e) => {
+  e.stopPropagation();
   if (errorMsg) errorMsg.textContent = '';
-  
-  if (stationSelect) {
-    // Retain currently selected manual station if active, else reset to placeholder text
-    stationSelect.value = manualStationOverride || "";
+
+  if (isModelSoundingActive) {
+    // --- MODE: RAP MODEL SOUNDING ---
+    const stationInput = convertStationInputElement(true);
+    if (stationInput) {
+      stationInput.value = ""; // Clear input automatically upon trigger
+      injectTVKeyboard(stationInput); // Mount the keys grid
+    }
+    if (hourSelect) hourSelect.style.display = 'none'; 
+    if (submitBtn) submitBtn.textContent = "Load Model Sounding";
+  } else {
+    // --- MODE: OBSERVED SOUNDING ---
+    removeTVKeyboard(); // Wipe keyboard out if transitioning modes
+    const stationInput = convertStationInputElement(false);
+    if (stationInput) {
+      stationInput.value = manualStationOverride || "";
+    }
+    if (hourSelect) hourSelect.style.display = 'block'; 
+    if (submitBtn) submitBtn.textContent = "Submit Selection";
   }
   
   if (soundingModal) soundingModal.style.display = 'flex';
 });
 
-// 2. Double Click: Wipe out the manual override block and restore standard auto scheduling loop
-soundingStationLabel.addEventListener('dblclick', (e) => {
-  e.stopPropagation();
-  manualStationOverride = null;
-  manualHourOverride = null;
-  console.log("Restoring automatic sounding routine cycle tracking...");
-  loadSounding();
-});
-
-// 3. Dismiss Modal cleanly
+// 2. Dismiss Modal cleanly
 cancelBtn.addEventListener('click', () => {
   if (soundingModal) soundingModal.style.display = 'none';
+  removeTVKeyboard();
 });
 
-// 4. Process Selection and Fetch Details
+// 3. Process Selection and Fetch Details
 submitBtn.addEventListener('click', async () => {
-  if (!stationSelect || !hourSelect || !errorMsg) return;
+  const stationSelect = document.getElementById('custom-station-input');
+  if (!stationSelect || !errorMsg) return;
   
-  const targetStation = stationSelect.value;
-  const targetHour = hourSelect.value;
-  
+  const targetStation = stationSelect.value.trim().toUpperCase(); // Ensure forcing upper case
   if (!targetStation) {
     errorMsg.style.color = '#ff6060';
-    errorMsg.textContent = 'Please choose a station location from the list.';
+    errorMsg.textContent = 'Please enter a station identifier.';
     return;
   }
+  
+  // BRANCH A: Handle Model Sounding Submission
+  if (isModelSoundingActive) {
+    errorMsg.style.color = 'var(--muted)';
+    errorMsg.textContent = 'Loading model file...';
+    
+    if (soundingModal) soundingModal.style.display = 'none';
+    removeTVKeyboard();
+    await loadModelSounding(targetStation);
+    return; 
+  }
+  
+  // BRANCH B: Handle Observed Sounding Submission
+  if (!hourSelect) return;
+  const targetHour = hourSelect.value;
   
   errorMsg.style.color = 'var(--muted)';
   errorMsg.textContent = 'Validating file on SPC server...';
@@ -4752,11 +4910,11 @@ submitBtn.addEventListener('click', async () => {
       throw new Error('Data empty or station missing for this hour');
     }
     
-    // Success: Apply states and update dashboard plot layout
     manualStationOverride = targetStation;
     manualHourOverride = targetHour;
     
     if (soundingModal) soundingModal.style.display = 'none';
+    removeTVKeyboard();
     await loadSounding();
     
   } catch (err) {
@@ -4769,12 +4927,15 @@ submitBtn.addEventListener('click', async () => {
 //document.getElementById('sounding-station').addEventListener('click', toggleCloudLayer);
 document.getElementById('cloud-overlay-btn').addEventListener('click', toggleCloudLayer);
 
+
 function getParcelPath(data) {
   if (parcelMode === 'ML') return computeMLParcelPath(data);
   if (parcelMode === 'MU') return computeMUParcelPath(data);
 
   return computeParcelPath(data); // handles SB + SB_WX
 }
+
+
 
 // ---- SATELLITE / RADAR TOGGLE ----
 //const SAT_URL = 'https://geosphere.ssec.wisc.edu/#playing:true;coordinate:-1362525,4001572;zoom:5.9;coverage:radc;num_frames:8;frame_rate:10;';
@@ -5324,13 +5485,14 @@ function loadObsSounding() {
 }
 
 // ---- RAP MODEL SOUNDING (BUFKIT) — loads on click of "Upper Air Sounding" title ----
-async function loadModelSounding() {
+async function loadModelSounding(icao = null) {
   if (icao) {
     const cleaned = icao.trim().toUpperCase();
     modelStationICAO = (cleaned.length === 3 ? 'K' + cleaned : cleaned).toLowerCase();
   }
   isModelSoundingActive = true;
   const label = document.getElementById('sounding-station');
+  //const label = document.getElementById('section-title');
   label.textContent = 'Fetching model data…';
   label.style.color = 'var(--muted)';
 
@@ -5537,7 +5699,7 @@ function toggleCloudLayer() {
 }
 
 function updateCloudButton() {
-  const el = document.getElementById('cloud-overlay-btn'); //sounding-station
+  const el = document.getElementById('cloud-overlay-btn');
   if (!el) return;
   el.style.opacity = showClouds ? '1' : '0.4';
 }
