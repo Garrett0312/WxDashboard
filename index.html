@@ -3417,31 +3417,204 @@ function estimateCloudLayers(data) {
   return { shapes, layers };
 }
 
+function computeSevereParams(data, parcelResult, CAPE, CIN) {
+  if (!parcelResult || CAPE < 500) return null;
+
+  const { parcelPath, P_LCL } = parcelResult;
+
+  // ---- FREEZING LEVEL ----
+  let freezingPres = null;
+  let freezingHgt  = null;
+  for (let i = 0; i < data.length - 1; i++) {
+    if (data[i].temp >= 0 && data[i+1].temp < 0) {
+      const frac = data[i].temp / (data[i].temp - data[i+1].temp);
+      freezingPres = data[i].pres + frac * (data[i+1].pres - data[i].pres);
+      const h1 = data[i].hght ?? 0, h2 = data[i+1].hght ?? 0;
+      freezingHgt = h1 + frac * (h2 - h1);
+      break;
+    }
+  }
+
+  // ---- PRECIPITABLE WATER ----
+  let PW = 0;
+  for (let i = 0; i < data.length - 1; i++) {
+    const d1 = data[i], d2 = data[i+1];
+    if (d1.dew == null || d2.dew == null) continue;
+    const e1  = 6.112 * Math.exp(17.67 * d1.dew / (d1.dew + 243.5));
+    const e2  = 6.112 * Math.exp(17.67 * d2.dew / (d2.dew + 243.5));
+    const w1  = 0.622 * e1 / (d1.pres - e1);
+    const w2  = 0.622 * e2 / (d2.pres - e2);
+    const dP  = Math.abs(d1.pres - d2.pres) * 100; // Pa
+    PW += ((w1 + w2) / 2) * dP / (9.81 * 1000); // meters
+  }
+  PW = PW * 1000; // convert to mm
+
+  // ---- LCL HEIGHT (m AGL) ----
+  const sfcLevel = data.reduce((a, b) => a.pres > b.pres ? a : b);
+  const sfcHgt   = sfcLevel.hght ?? 0;
+  const lclLevel = data.reduce((c, d) =>
+    Math.abs(d.pres - P_LCL) < Math.abs(c.pres - P_LCL) ? d : c);
+  const lclHgt   = (lclLevel.hght ?? sfcHgt) - sfcHgt;
+
+  // ---- 0-6km BULK SHEAR ----
+  const validWind = data.filter(d =>
+    d.wspd != null && d.wdir != null && d.hght != null && !isNaN(d.wspd) && !isNaN(d.wdir));
+  let shear06 = 0;
+  if (validWind.length >= 2) {
+    const sfc6 = validWind.reduce((c, d) =>
+      Math.abs(d.hght - sfcHgt) < Math.abs(c.hght - sfcHgt) ? d : c);
+    const top6 = validWind.reduce((c, d) =>
+      Math.abs(d.hght - (sfcHgt + 6000)) < Math.abs(c.hght - (sfcHgt + 6000)) ? d : c);
+    const toRad = deg => deg * Math.PI / 180;
+    const u1 = -sfc6.wspd * Math.sin(toRad(sfc6.wdir));
+    const v1 = -sfc6.wspd * Math.cos(toRad(sfc6.wdir));
+    const u2 = -top6.wspd * Math.sin(toRad(top6.wdir));
+    const v2 = -top6.wspd * Math.cos(toRad(top6.wdir));
+    shear06 = Math.sqrt(Math.pow(u2 - u1, 2) + Math.pow(v2 - v1, 2));
+  }
+
+  // ---- 0-1km SRH (using internal storm motion estimate) ----
+  let SRH01 = 0;
+  if (validWind.length >= 2) {
+    // Bunkers storm motion estimate
+    const sfcW = validWind.reduce((c, d) =>
+      Math.abs(d.hght - sfcHgt) < Math.abs(c.hght - sfcHgt) ? d : c);
+    const topW = validWind.reduce((c, d) =>
+      Math.abs(d.hght - (sfcHgt + 6000)) < Math.abs(c.hght - (sfcHgt + 6000)) ? d : c);
+    const toRad = deg => deg * Math.PI / 180;
+    const uMean = (-sfcW.wspd * Math.sin(toRad(sfcW.wdir)) + -topW.wspd * Math.sin(toRad(topW.wdir))) / 2;
+    const vMean = (-sfcW.wspd * Math.cos(toRad(sfcW.wdir)) + -topW.wspd * Math.cos(toRad(topW.wdir))) / 2;
+    // Right-mover offset (~7.5m/s perpendicular)
+    const shearU = -topW.wspd * Math.sin(toRad(topW.wdir)) - (-sfcW.wspd * Math.sin(toRad(sfcW.wdir)));
+    const shearV = -topW.wspd * Math.cos(toRad(topW.wdir)) - (-sfcW.wspd * Math.cos(toRad(sfcW.wdir)));
+    const shearMag = Math.sqrt(shearU * shearU + shearV * shearV) || 1;
+    const stormU = uMean + 7.5 * (shearV / shearMag);
+    const stormV = vMean - 7.5 * (shearU / shearMag);
+
+    // Integrate SRH in 0-1km layer
+    const layer01 = validWind.filter(d =>
+      d.hght >= sfcHgt && d.hght <= sfcHgt + 1000);
+    for (let i = 0; i < layer01.length - 1; i++) {
+      const u1 = -layer01[i].wspd   * Math.sin(toRad(layer01[i].wdir))   - stormU;
+      const v1 = -layer01[i].wspd   * Math.cos(toRad(layer01[i].wdir))   - stormV;
+      const u2 = -layer01[i+1].wspd * Math.sin(toRad(layer01[i+1].wdir)) - stormU;
+      const v2 = -layer01[i+1].wspd * Math.cos(toRad(layer01[i+1].wdir)) - stormV;
+      SRH01 += (u1 * v2) - (u2 * v1);
+    }
+    SRH01 = Math.abs(SRH01);
+  }
+
+  // ---- THREAT RATINGS ----
+  // HAIL: driven by CAPE + freezing level (lower = bigger hail)
+  const freezingHgtAGL = freezingHgt != null ? freezingHgt - sfcHgt : 3000;
+  let hail = 'NONE';
+  if      (CAPE > 2500 && freezingHgtAGL < 2500) hail = 'HIGH';
+  else if (CAPE > 1500 && freezingHgtAGL < 3500) hail = 'MOD';
+  else if (CAPE > 500)                           hail = 'LOW';
+
+  // WIND: driven by 0-6km shear + CAPE (bow echo / downburst potential)
+  let wind = 'NONE';
+  if      (shear06 > 30 && CAPE > 1500) wind = 'HIGH';
+  else if (shear06 > 20 && CAPE > 800)  wind = 'MOD';
+  else if (shear06 > 12 || CAPE > 1000) wind = 'LOW';
+
+  // FLOOD: driven by precipitable water + weak shear (slow storm motion)
+  let flood = 'NONE';
+  if      (PW > 45 && shear06 < 15) flood = 'HIGH';
+  else if (PW > 35)                  flood = 'MOD';
+  else if (PW > 25)                  flood = 'LOW';
+
+  // TORNADO: driven by SRH + shear + CAPE + LCL height
+  let tornado = 'NONE';
+  if      (SRH01 > 300 && shear06 > 25 && CAPE > 1000 && lclHgt < 1000) tornado = 'HIGH';
+  else if (SRH01 > 150 && shear06 > 18 && CAPE > 500)                   tornado = 'MOD';
+  else if (SRH01 > 75  && shear06 > 12)                                  tornado = 'LOW';
+
+  return { hail, wind, flood, tornado, PW: Math.round(PW), shear06: Math.round(shear06), SRH01: Math.round(SRH01), lclHgt: Math.round(lclHgt), freezingHgtAGL: Math.round(freezingHgtAGL) };
+}
+
 function plotSkewT(data) {
   const pressure = data.map(d => d.pres ?? NaN); // hPa
   const temp = data.map(d => d.temp ?? NaN);     // °C
   const dew = data.map(d => d.dew ?? NaN);       // °C
 
-  // Adjust low-level environment data if using custom station profiles
-  function wxAdjustedData(data, P_LCL) {
-    if (parcelMode !== 'WX' || WxTempC == null || WxDewC == null) return data;
+ function wxAdjustedData(data, P_LCL) {
+    const sfcP = data.reduce((a, b) => a.pres > b.pres ? a : b).pres;
 
-    const sfcP  = data.reduce((a, b) => a.pres > b.pres ? a : b).pres;
-    const sfcT  = WxTempC + 273.15;   // K
-    const sfcTd = WxDewC  + 273.15;   // K
+    // WX mode — adjust boundary layer to match station obs
+    if (parcelMode === 'WX' && WxTempC != null && WxDewC != null) {
+      const sfcT  = WxTempC + 273.15;
+      const sfcTd = WxDewC  + 273.15;
+      const e_sfc = 6.112 * Math.exp(17.67 * WxDewC / (WxDewC + 243.5));
+      const r_sfc = 0.622 * e_sfc / (sfcP - e_sfc);
 
-    const e_sfc = 6.112 * Math.exp(17.67 * WxDewC / (WxDewC + 243.5));
-    const r_sfc = 0.622 * e_sfc / (sfcP - e_sfc); // kg/kg
+      return data.map(d => {
+        if (d.pres <= P_LCL) return d;
+        const T_dry = sfcT * Math.pow(d.pres / sfcP, 0.2854) - 273.15;
+        const e_p   = r_sfc * d.pres / (0.622 + r_sfc);
+        const Td_p  = 243.5 * Math.log(e_p / 6.112) / (17.67 - Math.log(e_p / 6.112));
+        return { ...d, temp: T_dry, dew: Td_p };
+      });
+    }
 
-    return data.map(d => {
-      if (d.pres <= P_LCL) return d; 
+    // ML mode — blend boundary layer toward the mean mixed-layer T and Td
+    if (parcelMode === 'ML' && parcelResult) {
+      const mlResult = parcelResult;
+      if (mlResult.meanT == null || mlResult.meanTd == null) return data;
 
-      const T_dry = sfcT * Math.pow(d.pres / sfcP, 0.2854) - 273.15;
-      const e_p  = r_sfc * d.pres / (0.622 + r_sfc);
-      const Td_p = 243.5 * Math.log(e_p / 6.112) / (17.67 - Math.log(e_p / 6.112));
+      const meanT  = mlResult.meanT;
+      const meanTd = mlResult.meanTd;
+      const e_ml   = 6.112 * Math.exp(17.67 * meanTd / (meanTd + 243.5));
+      const r_ml   = 0.622 * e_ml / (sfcP - e_ml);
+      const sfcT   = meanT + 273.15;
 
-      return { ...d, temp: T_dry, dew: Td_p };
-    });
+      return data.map(d => {
+        if (d.pres <= P_LCL) return d;
+        // Blend weight: 1.0 at surface, 0.0 at LCL
+        const weight = Math.max(0, (d.pres - P_LCL) / (sfcP - P_LCL));
+        const T_dry  = (sfcT * Math.pow(d.pres / sfcP, 0.2854) - 273.15);
+        const e_p    = r_ml * d.pres / (0.622 + r_ml);
+        const Td_p   = 243.5 * Math.log(e_p / 6.112) / (17.67 - Math.log(e_p / 6.112));
+        // Blend between original sounding and ML-adjusted profile
+        return {
+          ...d,
+          temp: d.temp + weight * (T_dry - d.temp),
+          dew:  d.dew  != null ? d.dew + weight * (Td_p - d.dew) : d.dew,
+        };
+      });
+    }
+
+    // MU mode — nudge boundary layer toward the most unstable level's properties
+    if (parcelMode === 'MU' && parcelResult) {
+      const muT  = parcelResult.parcelPath?.[0]?.temp;
+      const muP  = parcelResult.parcelPath?.[0]?.pres;
+      if (muT == null || muP == null) return data;
+
+      // Find the MU level dewpoint from original data
+      const muLevel = data.reduce((c, d) =>
+        Math.abs(d.pres - muP) < Math.abs(c.pres - muP) ? d : c);
+      const muTd = muLevel.dew ?? muT - 10;
+
+      const e_mu  = 6.112 * Math.exp(17.67 * muTd / (muTd + 243.5));
+      const r_mu  = 0.622 * e_mu / (muP - e_mu);
+      const sfcT  = muT + 273.15;
+
+      return data.map(d => {
+        if (d.pres <= P_LCL || d.pres < muP) return d;
+        const weight = Math.max(0, (d.pres - P_LCL) / (sfcP - P_LCL));
+        const T_dry  = sfcT * Math.pow(d.pres / sfcP, 0.2854) - 273.15;
+        const e_p    = r_mu * d.pres / (0.622 + r_mu);
+        const Td_p   = 243.5 * Math.log(e_p / 6.112) / (17.67 - Math.log(e_p / 6.112));
+        return {
+          ...d,
+          temp: d.temp + weight * (T_dry - d.temp),
+          dew:  d.dew  != null ? d.dew + weight * (Td_p - d.dew) : d.dew,
+        };
+      });
+    }
+
+    // SB or fallback — no adjustment needed
+    return data;
   }
   
 
@@ -3638,7 +3811,9 @@ function plotSkewT(data) {
       }
       CAPE03 = Math.max(0, Math.round(CAPE03));
     
-      //console.log(`[Sounding] ${activeParcelType} CAPE: ${CAPE} J/kg | CIN: ${CIN} J/kg | 0-3km CAPE: ${CAPE03} J/kg`);
+      console.log(`[Sounding] ${activeParcelType} CAPE: ${CAPE} J/kg | CIN: ${CIN} J/kg | 0-3km CAPE: ${CAPE03} J/kg`);
+      const severeParams = computeSevereParams(data, parcelResult, CAPE, CIN);
+      renderSevereOverlay(severeParams);
   }
 
   // NOW call estimateCloudLayers with CAPE already known
@@ -5893,6 +6068,12 @@ function parseBUFKIT(text) {
         const cleanWdir = (!isNaN(wdir) && wdir > -9990) ? wdir : null;
         const cleanWspd = (!isNaN(wspd) && wspd > -9990) ? wspd : null;
         const cleanHght = (!isNaN(hght) && hght > -9990) ? hght : null;
+        let frost = null;
+        if (cleanDew !== null && cleanDew < 0) {
+          const A = 17.2694 * cleanDew / (cleanDew + 237.3);
+          frost = 265.49 * A / (21.8745584 - A);
+        }
+
         data.push({
           pres,
           hght: cleanHght,
@@ -5900,6 +6081,7 @@ function parseBUFKIT(text) {
           dew:  cleanDew  !== null ? cleanDew  : temp - 30,
           wdir: cleanWdir,
           wspd: cleanWspd,
+          frost,
         });
       }
       i += 2; // consume both lines
@@ -5943,6 +6125,55 @@ function updateCloudButton() {
   const el = document.getElementById('cloud-overlay-btn');
   if (!el) return;
   el.style.opacity = showClouds ? '1' : '0.4';
+}
+
+function renderSevereOverlay(params) {
+  // Remove existing
+  const existing = document.getElementById('severe-overlay');
+  if (existing) existing.remove();
+  if (!params) return;
+
+  const threatColor = r =>
+      r === 'HIGH' ? '#ff4444'
+    : r === 'MOD'  ? '#ffaa00'
+    : r === 'LOW'  ? '#ffd43b'
+    : null;
+
+  const row = (icon, label, rating) => {
+    const color = threatColor(rating);
+    if (!color) return ''; // hide NONE threats
+    return `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px;">
+        <span style="font-size:9px;color:rgba(200,220,255,0.7);letter-spacing:1px;">${icon} ${label}</span>
+        <span style="font-size:9px;font-weight:600;color:${color};letter-spacing:1px;">${rating}</span>
+      </div>`;
+  };
+
+  const html =
+    row('💨', 'WIND',  params.wind) +
+    row('🌨️', 'HAIL',  params.hail) +
+    row('🌪️', 'TOR',   params.tornado) +
+    row('💧', 'FLOOD', params.flood);
+
+  if (!html.trim()) return; // nothing to show
+
+  const div = document.createElement('div');
+  div.id = 'severe-overlay';
+  div.style.cssText = `
+    position: absolute;
+    top: 8px;
+    left: 45px;
+    z-index: 25;
+    background: rgba(17,23,32,0.88);
+    border: 1px solid rgba(100,180,255,0.2);
+    border-radius: 4px;
+    padding: 5px 7px;
+    pointer-events: none;
+    font-family: 'IBM Plex Mono', monospace;
+    min-width: 90px;
+  `;
+  div.innerHTML = html;
+  document.getElementById('skewt').appendChild(div);
 }
 
 /*
