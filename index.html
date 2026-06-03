@@ -3166,6 +3166,7 @@ function computeParcelPath(data) {
     //sfcTd = WxDewC ?? sfc.dew; // you can also override this if you want
     sfcT  = (WxTempC != null && !isNaN(WxTempC)) ? WxTempC : sfc.temp;
     sfcTd = (WxDewC  != null && !isNaN(WxDewC))  ? WxDewC  : sfc.dew;
+    //sfcTd = sfc.dew;
     sfcP = sfc.pres;
     sfcTemp = WxTemp;
 
@@ -3541,19 +3542,140 @@ function plotSkewT(data) {
  function wxAdjustedData(data, P_LCL) {
     const sfcP = data.reduce((a, b) => a.pres > b.pres ? a : b).pres;
 
-    // WX mode — adjust boundary layer to match station obs
+    // WX mode — time-aware, tapered boundary layer blend using station obs.
+    //
+    // Physics basis: Stull (1988), Seidel et al. (2010 JGR).
+    // The station obs are authoritative at the surface but become less
+    // representative with height as the mixed layer depth varies through
+    // the day.  Rather than hard-replacing everything below P_LCL with a
+    // dry-adiabatic projection (which creates a sharp kink that fires
+    // false cloud signals in estimateCloudLayers), we:
+    //
+    //  1. Estimate the current mixed-layer top (P_ML) by lifting the WX
+    //     parcel dry-adiabatically and finding where it first meets the
+    //     sounding's environmental temperature — this is the convective
+    //     boundary layer top, and scales naturally with diurnal heating.
+    //
+    //  2. Apply a smooth sigmoid weight that is 1.0 at the surface and
+    //     decays to ~0 at P_ML, so the station obs fade gracefully into
+    //     the sounding rather than cutting off abruptly.
+    //
+    //  3. Above P_ML the sounding is left completely untouched.
     if (parcelMode === 'WX' && WxTempC != null && WxDewC != null) {
-      const sfcT  = WxTempC + 273.15;
-      const sfcTd = WxDewC  + 273.15;
-      const e_sfc = 6.112 * Math.exp(17.67 * WxDewC / (WxDewC + 243.5));
-      const r_sfc = 0.622 * e_sfc / (sfcP - e_sfc);
+      const sfcT_K = WxTempC + 273.15;
+      const e_sfc  = 6.112 * Math.exp(17.67 * WxDewC / (WxDewC + 243.5));
+      const r_sfc  = 0.622 * e_sfc / (sfcP - e_sfc);
+
+      // ---- Step 1a: Thermal ML top — parcel method ----
+      // Lift the WX parcel dry-adiabatically and find where it first
+      // undercuts the environmental temperature.  That crossing is the
+      // convective BL top driven by surface heating (Seidel et al. 2010).
+      const sortedEnv = [...data].sort((a, b) => b.pres - a.pres); // surface first
+      let P_ML_thermal = P_LCL; // fallback to LCL if no crossing found
+
+      for (let i = 1; i < sortedEnv.length; i++) {
+        const envLevel = sortedEnv[i];
+        if (envLevel.pres >= sfcP) continue;
+        const parcelT = sfcT_K * Math.pow(envLevel.pres / sfcP, 0.2854) - 273.15;
+        if (parcelT <= envLevel.temp) {
+          const prev        = sortedEnv[i - 1];
+          const prevParcelT = sfcT_K * Math.pow(prev.pres / sfcP, 0.2854) - 273.15;
+          const dParcel     = parcelT - prevParcelT;
+          const dEnv        = envLevel.temp - prev.temp;
+          const frac        = (dParcel === dEnv) ? 0 : (prev.temp - prevParcelT) / (dParcel - dEnv);
+          P_ML_thermal = prev.pres + frac * (envLevel.pres - prev.pres);
+          P_ML_thermal = Math.max(P_ML_thermal, P_LCL);
+          break;
+        }
+      }
+
+      // ---- Step 1b: Mechanical ML top — bulk Richardson number ----
+      // The bulk Ri from the surface to each level measures whether wind
+      // shear is generating enough mechanical turbulence to keep the layer
+      // mixed (Stull 1988 §3.3; Miles 1961 critical Ri = 0.25).
+      //
+      //   Ri_bulk = (g / Tv_sfc) * (ΔTv * Δz) / (ΔU² + ΔV²)
+      //
+      // Walk upward tracking the deepest level still below Ri_crit.
+      // If strong low-level shear (LLJ, frontal gradient, morning drainage
+      // winds) keeps Ri < 0.25 deeper than the thermal parcel found, your
+      // station obs are genuinely representative over that deeper layer.
+      const RI_CRIT  = 0.25;
+      const sfcLevel = sortedEnv[0];
+      const Tv_sfc   = sfcT_K * (1 + 0.61 * r_sfc);
+      const sfcHgt   = sfcLevel.hght ?? 0;
+
+      const sfcSpd = (sfcLevel.wspd ?? 0) * 0.51444; // knots → m/s
+      const sfcRad = (sfcLevel.wdir ?? 0) * Math.PI / 180;
+      const U_sfc  = -sfcSpd * Math.sin(sfcRad);
+      const V_sfc  = -sfcSpd * Math.cos(sfcRad);
+
+      let P_ML_shear = P_ML_thermal; // default: no shear deepening
+
+      for (let i = 1; i < sortedEnv.length; i++) {
+        const lev = sortedEnv[i];
+        if (lev.pres >= sfcP) continue;
+        if (lev.hght == null || lev.wspd == null || lev.wdir == null) continue;
+
+        const dz = lev.hght - sfcHgt;
+        if (dz <= 0) continue;
+
+        // Virtual temperature at this level
+        const e_lev  = lev.dew != null
+          ? 6.112 * Math.exp(17.67 * lev.dew / (lev.dew + 243.5)) : 0;
+        const r_lev  = lev.dew != null ? 0.622 * e_lev / (lev.pres - e_lev) : 0;
+        const Tv_lev = (lev.temp + 273.15) * (1 + 0.61 * r_lev);
+
+        const dTv = Tv_lev - Tv_sfc;
+
+        const levSpd  = lev.wspd * 0.51444;
+        const levRad  = lev.wdir * Math.PI / 180;
+        const U_lev   = -levSpd * Math.sin(levRad);
+        const V_lev   = -levSpd * Math.cos(levRad);
+        const windShr2 = (U_lev - U_sfc) ** 2 + (V_lev - V_sfc) ** 2;
+
+        if (windShr2 < 0.01) continue; // near-calm — skip to avoid ÷0
+
+        const Ri = (9.81 / Tv_sfc) * (dTv * dz) / windShr2;
+
+        if (Ri < RI_CRIT) {
+          P_ML_shear = lev.pres; // shear still mixing at this level — extend
+        } else {
+          break; // Ri exceeded critical, mechanical mixing no longer dominant
+        }
+      }
+
+      // ---- Step 1c: Take the deeper of the two estimates ----
+      // Either thermal convection or mechanical shear is sufficient to
+      // sustain a well-mixed layer; whichever reaches higher altitude wins.
+      let P_ML = Math.min(P_ML_thermal, P_ML_shear);
+      P_ML = Math.max(P_ML, P_LCL); // never blend above LCL (parcel is saturated there)
+
+      // ---- Step 2: Smooth sigmoid taper ----
+      // weight(p) = 1 at p=sfcP, smoothly → 0 at p=P_ML
+      // We use a logistic curve centred at the midpoint of the BL so the
+      // blend feels natural rather than linear.
+      const pMid   = (sfcP + P_ML) / 2;
+      const pScale = (sfcP - P_ML) / 6; // steepness: 6σ spans the layer
 
       return data.map(d => {
-        if (d.pres <= P_LCL) return d;
-        const T_dry = sfcT * Math.pow(d.pres / sfcP, 0.2854) - 273.15;
+        if (d.pres <= P_ML) return d; // above ML top: pure sounding
+
+        // Logistic weight — 1.0 near surface, 0.0 near ML top
+        const weight = pScale > 0
+          ? 1 / (1 + Math.exp(-(d.pres - pMid) / pScale))
+          : (d.pres > pMid ? 1 : 0);
+
+        const T_dry = sfcT_K * Math.pow(d.pres / sfcP, 0.2854) - 273.15;
         const e_p   = r_sfc * d.pres / (0.622 + r_sfc);
         const Td_p  = 243.5 * Math.log(e_p / 6.112) / (17.67 - Math.log(e_p / 6.112));
-        return { ...d, temp: T_dry, dew: Td_p };
+
+        // Blend: station-derived profile at weight=1, sounding at weight=0
+        return {
+          ...d,
+          temp: d.temp + weight * (T_dry - d.temp),
+          dew:  d.dew  != null ? d.dew + weight * (Td_p - d.dew) : d.dew,
+        };
       });
     }
 
@@ -3816,7 +3938,13 @@ function plotSkewT(data) {
       renderSevereOverlay(severeParams);
   }
 
-  // NOW call estimateCloudLayers with CAPE already known
+  // NOW call estimateCloudLayers with CAPE already known.
+  // Pass the mode-adjusted profile so cloud detection reflects the current
+  // best estimate of the atmosphere — WX mode uses the station-obs-blended
+  // boundary layer, ML/MU use their respective adjustments, SB uses raw data.
+  // The fix for the spurious Sc was in wxAdjustedData itself (smooth sigmoid
+  // taper instead of a hard cutoff at P_LCL), not here — so the cloud overlay
+  // correctly responds to parcel mode selection as intended.
   const { shapes: cloudShapes, layers: cloudLayers } = estimateCloudLayers(wxAdjustedData(data, P_LCL_wx));
 
   // Cloud type classification rule matrix
