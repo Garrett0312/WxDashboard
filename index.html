@@ -3826,6 +3826,8 @@ function plotSkewT(data) {
   const activeParcelType = parcelType;
   let CAPE = 0; // Will be computed from parcel path below
   let CIN = 0;
+  let CAPE03 = 0;
+  let CAPE_below_LFC = 0;
 
   // ---- PRE-COMPUTE CAPE so cloud classification has the real value ----
   if (parcelResult) {
@@ -3860,36 +3862,66 @@ function plotSkewT(data) {
     }
     CAPE = Math.max(0, Math.round(CAPE));
     
-    // ---- CIN: integrate negative buoyancy from surface to LFC only ----
-      let CIN = 0;
-      let reachedLFC = false;
+      // Find EL first — lowest pressure level where parcel >= env
+      let P_EL = null;
+      for (let i = parcelPath.length - 1; i >= 0; i--) {
+        const P1 = parcelPath[i].pres;
+        if (P1 > parcelResult.P_LCL) continue;
+        const env1 = data.reduce((c, d) => Math.abs(d.pres - P1) < Math.abs(c.pres - P1) ? d : c);
+        if (parcelPath[i].temp >= env1.temp) { P_EL = P1; break; }
+      }
+
+      // Walk down from EL — LFC is the lowest level from which parcel is
+      // continuously warmer than env with no CIN between it and the EL.
+      let P_LFC = null;
+      if (P_EL !== null) {
+        for (let i = parcelPath.length - 1; i >= 0; i--) {
+          const P1 = parcelPath[i].pres;
+          if (P1 > parcelResult.P_LCL) break;
+          if (P1 < P_EL) continue;
+          const env1 = data.reduce((c, d) => Math.abs(d.pres - P1) < Math.abs(c.pres - P1) ? d : c);
+          if (parcelPath[i].temp >= env1.temp) {
+            P_LFC = P1;
+          } else {
+            break;
+          }
+        }
+      }
+
+      CIN = 0;
+      CAPE_below_LFC = 0; // Reset for each run
+      const cinStop = P_LFC ?? (parcelResult.P_LCL * 0.98); // <-- Fixed: using P_LFC and cinStop
       for (let i = 0; i < parcelPath.length - 1; i++) {
         const P1 = parcelPath[i].pres;
         const P2 = parcelPath[i + 1].pres;
+        if (P1 <= cinStop) break; // Stops at the LFC
 
         const env1 = data.reduce((c, d) => Math.abs(d.pres - P1) < Math.abs(c.pres - P1) ? d : c);
         const env2 = data.reduce((c, d) => Math.abs(d.pres - P2) < Math.abs(c.pres - P2) ? d : c);
+        const tParcel1 = parcelPath[i].temp,     tParcel2 = parcelPath[i + 1].temp;
+        const tEnv1    = env1.temp,               tEnv2    = env2.temp;
 
-        const tParcel1 = parcelPath[i].temp, tParcel2 = parcelPath[i + 1].temp;
-        const tEnv1    = env1.temp,           tEnv2    = env2.temp;
+        const TvP1 = tParcel1 + 273.15, TvP2 = tParcel2 + 273.15;
+        const TvE1 = tEnv1    + 273.15, TvE2 = tEnv2    + 273.15;
+        
+        // Calculate both Negative (CIN) and Positive (CAPE below LFC) buoyancy
+        const b1n = Math.min(9.81 * (TvP1 - TvE1) / TvE1, 0);
+        const b2n = Math.min(9.81 * (TvP2 - TvE2) / TvE2, 0);
+        const b1p = Math.max(9.81 * (TvP1 - TvE1) / TvE1, 0);
+        const b2p = Math.max(9.81 * (TvP2 - TvE2) / TvE2, 0);
 
-        // Stop at LFC — first level where parcel becomes warmer than environment above LCL
-        if (tParcel1 >= tEnv1 && P1 <= parcelResult.P_LCL) {
-          reachedLFC = true;
-        }
-        if (reachedLFC) break;
+        const TvAvg = (TvP1 + TvP2) / 2;
+        const dz = (287.05 * TvAvg / 9.81) * Math.log(P1 / P2);
 
-        if (tParcel1 < tEnv1 || tParcel2 < tEnv2) {
-          const TvP1 = tParcel1 + 273.15, TvP2 = tParcel2 + 273.15;
-          const TvE1 = tEnv1    + 273.15, TvE2 = tEnv2    + 273.15;
-          const b1n = Math.min(9.81 * (TvP1 - TvE1) / TvE1, 0);
-          const b2n = Math.min(9.81 * (TvP2 - TvE2) / TvE2, 0);
-          const TvAvg = (TvP1 + TvP2) / 2;
-          const dz = (287.05 * TvAvg / 9.81) * Math.log(P1 / P2);
+        if (b1n < 0 || b2n < 0) {
           CIN += ((b1n + b2n) / 2) * dz;
         }
+        if (b1p > 0 || b2p > 0) {
+          CAPE_below_LFC += ((b1p + b2p) / 2) * dz;
+        }
       }
-      CIN = Math.round(CIN); // negative number, e.g. -87
+      CIN = Math.round(CIN); 
+      CAPE_below_LFC = Math.round(CAPE_below_LFC);
 
       // ---- LOW-LEVEL CAPE (0-3km AGL) ----
       // Find surface height first
@@ -3897,7 +3929,7 @@ function plotSkewT(data) {
       const sfcHgt   = sfcLevel.hght ?? 0;
       const ceil3km  = sfcHgt + 3000; // 3km AGL in meters
 
-      let CAPE03 = 0;
+      CAPE03 = 0;
       for (let i = 0; i < parcelPath.length - 1; i++) {
         const P1 = parcelPath[i].pres;
         const P2 = parcelPath[i + 1].pres;
@@ -3931,9 +3963,10 @@ function plotSkewT(data) {
           CAPE03 += ((b1p + b2p) / 2) * dz;
         }
       }
-      CAPE03 = Math.max(0, Math.round(CAPE03));
+      CAPE03 = Math.max(0, Math.round(CAPE03));    
     
-      console.log(`[Sounding] ${activeParcelType} CAPE: ${CAPE} J/kg | CIN: ${CIN} J/kg | 0-3km CAPE: ${CAPE03} J/kg`);
+      console.log(`[Sounding] ${activeParcelType} CAPE: ${CAPE} J/kg | ↓LFC CAPE: ${CAPE_below_LFC} J/kg | CIN: ${CIN} J/kg | LFC: ${P_LFC ? Math.round(P_LFC) + ' hPa' : 'none'} | LCL: ${Math.round(parcelResult.P_LCL)} hPa | EL: ${P_EL ? Math.round(P_EL) + ' hPa' : 'none'}`);
+
       const severeParams = computeSevereParams(data, parcelResult, CAPE, CIN);
       renderSevereOverlay(severeParams);
   }
@@ -3946,7 +3979,6 @@ function plotSkewT(data) {
   // taper instead of a hard cutoff at P_LCL), not here — so the cloud overlay
   // correctly responds to parcel mode selection as intended.
   const { shapes: cloudShapes, layers: cloudLayers } = estimateCloudLayers(wxAdjustedData(data, P_LCL_wx));
-
   // Cloud type classification rule matrix
   function classifyCloudType(layer, currentCAPE, P_LCL) {
     const p    = layer.pMid;
@@ -3958,7 +3990,9 @@ function plotSkewT(data) {
     const isLow  = p >= 650;
 
     const nearLCL      = P_LCL && layer.pBase >= P_LCL * 0.85;
-    const isConvective = (nearLCL && currentCAPE > 200) || (isLow && currentCAPE > 500);
+    const canInitiate = CAPE_below_LFC > 0 && CIN < 0 ? CAPE_below_LFC > Math.abs(CIN) : CIN >= 0;
+    const isConvective = ((nearLCL && currentCAPE > 200) || (isLow && currentCAPE > 500)) && canInitiate;
+    
 
     if (isHigh) {
       if (cov >= 0.60) return 'Cs';
@@ -3971,8 +4005,11 @@ function plotSkewT(data) {
     if (isConvective) {
       return currentCAPE > 1000 ? 'Cb' : 'Cu'; 
     }
+    // In an unstable environment near the LCL, low cloud is Cu not St/Sc
+    const nearLCLAny = P_LCL && layer.pBase >= P_LCL * 0.90;
+    if (isLow && nearLCLAny && currentCAPE > 100) return 'Cu';
     if (cov >= 0.80 && dep <= 2) return 'St';  
-    return 'Sc';                                   
+    return 'Sc';                                 
   }
 
   if (parcelResult) {
@@ -4094,29 +4131,46 @@ function plotSkewT(data) {
       }
       CAPE = Math.max(0, Math.round(CAPE));
       
-      // ---- CIN: integrate negative buoyancy from surface to LFC only ----
-      let reachedLFC = false;
+      let P_EL2 = null;
+      for (let i = parcelPath.length - 1; i >= 0; i--) {
+        const P1 = parcelPath[i].pres;
+        if (P1 > parcelResult.P_LCL) continue;
+        const env1 = data.reduce((c, d) => Math.abs(d.pres - P1) < Math.abs(c.pres - P1) ? d : c);
+        if (parcelPath[i].temp >= env1.temp) { P_EL2 = P1; break; }
+      }
+
+      let P_LFC2 = null;
+      if (P_EL2 !== null) {
+        for (let i = parcelPath.length - 1; i >= 0; i--) {
+          const P1 = parcelPath[i].pres;
+          if (P1 > parcelResult.P_LCL) break;
+          if (P1 < P_EL2) continue;
+          const env1 = data.reduce((c, d) => Math.abs(d.pres - P1) < Math.abs(c.pres - P1) ? d : c);
+          if (parcelPath[i].temp >= env1.temp) {
+            P_LFC2 = P1;
+          } else {
+            break;
+          }
+        }
+      }
+
+      CIN = 0;
+      const cinStop2 = P_LFC2 ?? (parcelResult.P_LCL * 0.98);
       for (let i = 0; i < parcelPath.length - 1; i++) {
         const P1 = parcelPath[i].pres;
         const P2 = parcelPath[i + 1].pres;
+        if (P1 <= cinStop2) break;
 
         const env1 = data.reduce((c, d) => Math.abs(d.pres - P1) < Math.abs(c.pres - P1) ? d : c);
         const env2 = data.reduce((c, d) => Math.abs(d.pres - P2) < Math.abs(c.pres - P2) ? d : c);
-
         const tParcel1 = parcelPath[i].temp,     tParcel2 = parcelPath[i + 1].temp;
         const tEnv1    = env1.temp,               tEnv2    = env2.temp;
 
-        // Stop at LFC — the first level where parcel becomes warmer than environment
-        if (tParcel1 >= tEnv1 && P1 <= parcelResult.P_LCL) {
-          reachedLFC = true;
-        }
-        if (reachedLFC) break;
-
-        if (tParcel1 < tEnv1 || tParcel2 < tEnv2) {
-          const TvP1 = tParcel1 + 273.15, TvP2 = tParcel2 + 273.15;
-          const TvE1 = tEnv1    + 273.15, TvE2 = tEnv2    + 273.15;
-          const b1n = Math.min(9.81 * (TvP1 - TvE1) / TvE1, 0);
-          const b2n = Math.min(9.81 * (TvP2 - TvE2) / TvE2, 0);
+        const TvP1 = tParcel1 + 273.15, TvP2 = tParcel2 + 273.15;
+        const TvE1 = tEnv1    + 273.15, TvE2 = tEnv2    + 273.15;
+        const b1n = Math.min(9.81 * (TvP1 - TvE1) / TvE1, 0);
+        const b2n = Math.min(9.81 * (TvP2 - TvE2) / TvE2, 0);
+        if (b1n < 0 || b2n < 0) {
           const TvAvg = (TvP1 + TvP2) / 2;
           const dz = (287.05 * TvAvg / 9.81) * Math.log(P1 / P2);
           CIN += ((b1n + b2n) / 2) * dz;
@@ -4250,7 +4304,8 @@ function plotSkewT(data) {
   });
 
   // ---- SYNTHETIC CONVECTIVE LAYER ----
-  if (parcelResult && CAPE > 200 && CIN > -50) {
+  const canInitiateConvection = CAPE_below_LFC > 0 && CIN < 0 ? CAPE_below_LFC > Math.abs(CIN) : CIN >= 0;
+  if (parcelResult && CAPE > 200 && canInitiateConvection) {
     const P_LCL = parcelResult.P_LCL;
 
     let EL = P_LCL - 100;
@@ -4462,7 +4517,7 @@ function plotSkewT(data) {
 
       if (parcelResult?.parcelPath) {
         parcelResult.parcelPath.forEach(pt => {
-          if (pt.pres <= dynamicLCL && pt.pres >= 700) {
+          if (pt.pres <= dynamicLCL && pt.pres >= 200) {
             const env = data.reduce((closest, d) =>
               Math.abs(d.pres - pt.pres) < Math.abs(closest.pres - pt.pres) ? d : closest
             );
@@ -6272,8 +6327,8 @@ function renderSevereOverlay(params) {
     if (!color) return ''; // hide NONE threats
     return `
       <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:2px;">
-        <span style="font-size:9px;color:rgba(200,220,255,0.7);letter-spacing:1px;">${icon} ${label}</span>
-        <span style="font-size:9px;font-weight:600;color:${color};letter-spacing:1px;">${rating}</span>
+        <span style="font-size:7px;color:rgba(200,220,255,0.7);letter-spacing:1px;">${icon} ${label}</span>
+        <span style="font-size:7px;font-weight:600;color:${color};letter-spacing:1px;">${rating}</span>
       </div>`;
   };
 
