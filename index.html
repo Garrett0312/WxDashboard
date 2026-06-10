@@ -2474,9 +2474,9 @@ function updateTicker() {
     : wxTicker;
 
   // 2. Calculate a dynamic animation duration based on text length
-  // This assumes roughly 1 second for every 15 characters, but never faster than 120s total.
+  // This assumes roughly 1 second for every 10 characters, but never faster than 80s total.
   const charCount = tickerEl.textContent.length;
-  const calculatedDuration = Math.max(120, charCount / 15); 
+  const calculatedDuration = Math.max(80, charCount / 10); 
   
   // 3. Apply the new duration directly to the element
   tickerEl.style.animationDuration = `${calculatedDuration}s`;
