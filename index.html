@@ -1537,7 +1537,7 @@ function getAmbientKeys() {
 //const LAT = 41.9779, LON = -91.6656;
 
 let LAT = 41.9720, LON = -91.6587; // fallback coordinates
-//let LAT = 42.9690, LON = -90.1234; //Dodgeville, WI    42.96908095042454, -90.12340225517615
+//let LAT = 43.6994, LON = -88.3585; //Eden, WI    43.69940846988437, -88.35857831131041
 
 function initWithLocation(lat, lon) {
   LAT = lat;
@@ -2474,7 +2474,7 @@ function updateTicker() {
     : wxTicker;
 
   // 2. Calculate a dynamic animation duration based on text length
-  // This assumes roughly 1 second for every 10 characters, but never faster than 80s total.
+  // This assumes roughly 1 second for every 15 characters, but never faster than 120s total.
   const charCount = tickerEl.textContent.length;
   const calculatedDuration = Math.max(80, charCount / 10); 
   
