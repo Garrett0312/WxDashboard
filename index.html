@@ -541,12 +541,30 @@
   #stories-content {
     transition: opacity 0.6s ease;
   }
-  
+  /*
   #alert-content {
     padding: 0;
     transition: opacity 0.6s ease;
     /*overflow: hidden;
-    position: relative;*/
+    position: relative;*
+    overflow: scroll;
+    position: relative;
+    scrollbar-width: none; /* hides the scrollbar in Firefox *
+  }
+  #alert-content-inner {
+    padding: 8px 10px 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }*/
+  
+  #alert-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    align-content: flex-start;
+    padding: 0;
+    transition: opacity 0.6s ease;
     overflow: scroll;
     position: relative;
     scrollbar-width: none; /* hides the scrollbar in Firefox */
@@ -557,14 +575,6 @@
     flex-direction: column;
     gap: 5px;
   }
-  /*
-  #alert-content {
-    padding: 0;
-    transition: opacity 0.6s ease;
-    overflow: scroll;
-    position: relative;
-    scrollbar-width: none; /* hides the scrollbar in Firefox *
-  }*/
 
   #alert-content::-webkit-scrollbar {
       display: none; /* hides the scrollbar in Chrome/Edge */
@@ -587,13 +597,18 @@
   .alert-box {
     /*background: rgba(255,124,58,0.08);
     border: 1px solid rgba(255,124,58,0.3);*/
-    border-radius: 4px;
+    border-radius: 6px;
     padding: 7px 10px;
+    font-family: 'IBM Plex Sans', sans-serif;
     font-size: 11px;
+    font-weight: 500;
     line-height: 1.4;
     /*color: #ffb47a;*/
-    flex: 1;
-    border: 1px solid rgba(255,255,255,0.1);
+    /*flex: 1;*/
+    flex: 0 0 auto;
+    height: max-content;
+    max-height: 100%;
+    border: 3px solid rgba(255,255,255,0.1);
   }
   .alert-box.ok {
     background: rgba(58,160,255,0.05);
@@ -601,8 +616,8 @@
     color: var(--muted);
   }
   .alert-box .alert-head {
-    font-size: 9px;
-    font-weight: 500;
+    font-size: 15px;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 1.5px;
     margin-bottom: 3px;
@@ -1066,6 +1081,18 @@
       cursor: pointer;
       pointer-events: all;
     ">MESO</button>
+    <button id="fronts-toggle" onclick="cycleSource('fronts')" style="
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 12px;
+      letter-spacing: 1.5px;
+      color: var(--accent);
+      background: rgba(58,160,255,0.1);
+      border: 1px solid rgba(58,160,255,0.3);
+      border-radius: 3px;
+      padding: 2px 10px;
+      cursor: pointer;
+      pointer-events: all;
+    ">FRONTS</button>
   </div>
   <iframe id="sat-iframe"
     src="https://geosphere.ssec.wisc.edu/#playing:true;coordinate:-1362525,4001572;zoom:5.9;coverage:radc;num_frames:8;frame_rate:10;"
@@ -1241,110 +1268,112 @@
 <!-- UPPER AIR SOUNDING -->
 <div class="panel" id="sounding" style="position: relative;">
   
-  <div id="sounding-selector-modal" style="display: none; position: absolute; inset: 0; background: rgba(11, 15, 20, 0.96); z-index: 100; padding: 12px; flex-direction: column; gap: 12px; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
-    <div style="font-family: 'Bebas Neue', sans-serif; font-size: 20px; color: var(--accent); letter-spacing: 1px;">Load Custom Sounding</div>
+  <div id="sounding-selector-modal" style="display: none; position: absolute; inset: 0; background: rgba(11, 15, 20, 0.96) !important; z-index: 100; padding: 6px; flex-direction: column; gap: 6px; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+    <div style="display: flex; justify-content: space-between; align-items: center; width: 90%; max-width: 340px;">
+      <div style="font-family: 'Bebas Neue', sans-serif; font-size: 20px; color: var(--accent); letter-spacing: 1px;">Load Sounding</div>
+      <select id="custom-date-select" style="background: var(--panel2); border: 1px solid var(--border); color: #fff; font-family: 'IBM Plex Mono', monospace; font-size: 13px; padding: 4px 8px; border-radius: 4px; outline: none; cursor: pointer; max-width: 135px;"></select>
+    </div>
     
-      <div style="display: flex; gap: 8px; width: 90%; max-width: 340px; justify-content: center;">
-        
-        <select id="custom-station-input" style="flex: 1; background: var(--panel2); border: 1px solid var(--border); color: #fff; font-family: 'IBM Plex Sans', sans-serif; font-size: 14px; padding: 6px 10px; border-radius: 4px; outline: none; cursor: pointer; max-width: 220px;">
-          <option value="" disabled selected>Select a Station...</option>
-          <option value="ABR">ABR - Aberdeen, SD</option>
-          <option value="ALB">ALB - Albany, NY</option>
-          <option value="AMA">AMA - Amarillo, TX</option>
-          <option value="APX">APX - Gaylord, MI</option>
-          <option value="ARX">ARX - La Crosse, WI</option>
-          <option value="BIS">BIS - Bismarck, ND</option>
-          <option value="BMX">BMX - Birmingham, AL</option>
-          <option value="BOI">BOI - Boise, ID</option>
-          <option value="BRO">BRO - Brownsville, TX</option>
-          <option value="BUF">BUF - Buffalo, NY</option>
-          <option value="CHH">CHH - Chatham, MA</option>
-          <option value="CHS">CHS - Charleston, SC</option>
-          <option value="CRP">CRP - Corpus Christi, TX</option>
-          <option value="CXW">CXW - Caribou, ME</option>
-          <option value="CYS">CYS - Cheyenne, WY</option>
-          <option value="DNR">DNR - Denver, CO</option>
-          <option value="DTX">DTX - Detroit, MI</option>
-          <option value="DVN">DVN - Davenport, IA</option>
-          <option value="EPZ">EPZ - El Paso, TX</option>
-          <option value="EWX">EWX - Austin/San Antonio, TX</option>
-          <option value="FFC">FFC - Peachtree City/Atlanta, GA</option>
-          <option value="FGZ">FGZ - Flagstaff, AZ</option>
-          <option value="FWD">FWD - Dallas/Fort Worth, TX</option>
-          <option value="GGW">GGW - Glasgow, MT</option>
-          <option value="GJT">GJT - Grand Junction, CO</option>
-          <option value="GRB">GRB - Green Bay, WI</option>
-          <option value="GSO">GSO - Greensboro, NC</option>
-          <option value="GYM">GYM - Guaymas, SON</option>
-          <option value="GYX">GYX - Gray, ME</option>
-          <option value="IAD">IAD - Sterling/Washington, VA</option>
-          <option value="ILN">ILN - Wilmington, OH</option>
-          <option value="ILX">ILX - Lincoln, IL</option>
-          <option value="JAN">JAN - Jackson, MS</option>
-          <option value="JAX">JAX - Jacksonville, FL</option>
-          <option value="KEY">KEY - Key West, FL</option>
-          <option value="LBF">LBF - North Platte, NE</option>
-          <option value="LCH">LCH - Lake Charles, LA</option>
-          <option value="LKN">LKN - Elko, NV</option>
-          <option value="LSX">LSX - St. Louis, MO</option>
-          <option value="LZK">LZK - Little Rock, AR</option>
-          <option value="MAF">MAF - Midland/Odessa, TX</option>
-          <option value="MFL">MFL - Miami, FL</option>
-          <option value="MFR">MFR - Medford, OR</option>
-          <option value="MHX">MHX - Newport/Morehead City, NC</option>
-          <option value="MPX">MPX - Minneapolis, MN</option>
-          <option value="MQT">MQT - Marquette, MI</option>
-          <option value="MTY">MTY - Monterrey, NL</option>
-          <option value="MYI">MYI - Maniworki, QC</option>
-          <option value="NKX">NKX - San Diego, CA</option>
-          <option value="OAK">OAK - Oakland, CA</option>
-          <option value="OAX">OAX - Omaha, NE</option>
-          <option value="OKX">OKX - New York City, NY</option>
-          <option value="OUN">OUN - Norman, OK</option>
-          <option value="PIT">PIT - Pittsburgh, PA</option>
-          <option value="REV">REV - Reno, NV</option>
-          <option value="RIW">RIW - Riverton, WY</option>
-          <option value="RNK">RNK - Blacksburg, VA</option>
-          <option value="SGF">SGF - Springfield, MO</option>
-          <option value="SHV">SHV - Shreveport, LA</option>
-          <option value="SLC">SLC - Salt Lake City, UT</option>
-          <option value="SLE">SLE - Salem, OR</option>
-          <option value="TAE">TAE - Tallahassee, FL</option>
-          <option value="TBW">TBW - Tampa Bay, FL</option>
-          <option value="TFX">TFX - Great Falls, MT</option>
-          <option value="TOP">TOP - Topeka, KS</option>
-          <option value="TUS">TUS - Tucson, AZ</option>
-          <option value="UIL">UIL - Quillayute, WA</option>
-          <option value="UNR">UNR - Rapid City, SD</option>
-          <option value="VBG">VBG - Vandenberg AFB, CA</option>
-          <option value="VEF">VEF - Las Vegas, NV</option>
-          <option value="YNE">YNE - Norway House, MB</option>
-          <option value="YWG">YWG - Winnipeg, MB</option>
-        </select>
+    <div style="display: flex; gap: 8px; width: 90%; max-width: 340px; justify-content: center;">
+      <select id="custom-station-input" style="flex: 1; background: var(--panel2); border: 1px solid var(--border); color: #fff; font-family: 'IBM Plex Sans', sans-serif; font-size: 14px; padding: 6px 10px; border-radius: 4px; outline: none; cursor: pointer; max-width: 220px;">
+        <option value="" disabled selected style="background: #111720;">Select a Station...</option>
+        <option value="ABR" style="background: #111720;">ABR - Aberdeen, SD</option>
+        <option value="ALB" style="background: #111720;">ALB - Albany, NY</option>
+        <option value="AMA" style="background: #111720;">AMA - Amarillo, TX</option>
+        <option value="APX" style="background: #111720;">APX - Gaylord, MI</option>
+        <option value="ARX" style="background: #111720;">ARX - La Crosse, WI</option>
+        <option value="BIS" style="background: #111720;">BIS - Bismarck, ND</option>
+        <option value="BMX" style="background: #111720;">BMX - Birmingham, AL</option>
+        <option value="BOI" style="background: #111720;">BOI - Boise, ID</option>
+        <option value="BRO" style="background: #111720;">BRO - Brownsville, TX</option>
+        <option value="BUF" style="background: #111720;">BUF - Buffalo, NY</option>
+        <option value="CHH" style="background: #111720;">CHH - Chatham, MA</option>
+        <option value="CHS" style="background: #111720;">CHS - Charleston, SC</option>
+        <option value="CRP" style="background: #111720;">CRP - Corpus Christi, TX</option>
+        <option value="CXW" style="background: #111720;">CXW - Caribou, ME</option>
+        <option value="CYS" style="background: #111720;">CYS - Cheyenne, WY</option>
+        <option value="DNR" style="background: #111720;">DNR - Denver, CO</option>
+        <option value="DTX" style="background: #111720;">DTX - Detroit, MI</option>
+        <option value="DVN" style="background: #111720;">DVN - Davenport, IA</option>
+        <option value="EPZ" style="background: #111720;">EPZ - El Paso, TX</option>
+        <option value="EWX" style="background: #111720;">EWX - Austin/San Antonio, TX</option>
+        <option value="FFC" style="background: #111720;">FFC - Peachtree City/Atlanta, GA</option>
+        <option value="FGZ" style="background: #111720;">FGZ - Flagstaff, AZ</option>
+        <option value="FWD" style="background: #111720;">FWD - Dallas/Fort Worth, TX</option>
+        <option value="GGW" style="background: #111720;">GGW - Glasgow, MT</option>
+        <option value="GJT" style="background: #111720;">GJT - Grand Junction, CO</option>
+        <option value="GRB" style="background: #111720;">GRB - Green Bay, WI</option>
+        <option value="GSO" style="background: #111720;">GSO - Greensboro, NC</option>
+        <option value="GYM" style="background: #111720;">GYM - Guaymas, SON</option>
+        <option value="GYX" style="background: #111720;">GYX - Gray, ME</option>
+        <option value="IAD" style="background: #111720;">IAD - Sterling/Washington, VA</option>
+        <option value="ILN" style="background: #111720;">ILN - Wilmington, OH</option>
+        <option value="ILX" style="background: #111720;">ILX - Lincoln, IL</option>
+        <option value="JAN" style="background: #111720;">JAN - Jackson, MS</option>
+        <option value="JAX" style="background: #111720;">JAX - Jacksonville, FL</option>
+        <option value="KEY" style="background: #111720;">KEY - Key West, FL</option>
+        <option value="LBF" style="background: #111720;">LBF - North Platte, NE</option>
+        <option value="LCH" style="background: #111720;">LCH - Lake Charles, LA</option>
+        <option value="LKN" style="background: #111720;">LKN - Elko, NV</option>
+        <option value="LSX" style="background: #111720;">LSX - St. Louis, MO</option>
+        <option value="LZK" style="background: #111720;">LZK - Little Rock, AR</option>
+        <option value="MAF" style="background: #111720;">MAF - Midland/Odessa, TX</option>
+        <option value="MFL" style="background: #111720;">MFL - Miami, FL</option>
+        <option value="MFR" style="background: #111720;">MFR - Medford, OR</option>
+        <option value="MHX" style="background: #111720;">MHX - Newport/Morehead City, NC</option>
+        <option value="MPX" style="background: #111720;">MPX - Minneapolis, MN</option>
+        <option value="MQT" style="background: #111720;">MQT - Marquette, MI</option>
+        <option value="MTY" style="background: #111720;">MTY - Monterrey, NL</option>
+        <option value="MYI" style="background: #111720;">MYI - Maniworki, QC</option>
+        <option value="NKX" style="background: #111720;">NKX - San Diego, CA</option>
+        <option value="OAK" style="background: #111720;">OAK - Oakland, CA</option>
+        <option value="OAX" style="background: #111720;">OAX - Omaha, NE</option>
+        <option value="OKX" style="background: #111720;">OKX - New York City, NY</option>
+        <option value="OUN" style="background: #111720;">OUN - Norman, OK</option>
+        <option value="PIT" style="background: #111720;">PIT - Pittsburgh, PA</option>
+        <option value="REV" style="background: #111720;">REV - Reno, NV</option>
+        <option value="RIW" style="background: #111720;">RIW - Riverton, WY</option>
+        <option value="RNK" style="background: #111720;">RNK - Blacksburg, VA</option>
+        <option value="SGF" style="background: #111720;">SGF - Springfield, MO</option>
+        <option value="SHV" style="background: #111720;">SHV - Shreveport, LA</option>
+        <option value="SLC" style="background: #111720;">SLC - Salt Lake City, UT</option>
+        <option value="SLE" style="background: #111720;">SLE - Salem, OR</option>
+        <option value="TAE" style="background: #111720;">TAE - Tallahassee, FL</option>
+        <option value="TBW" style="background: #111720;">TBW - Tampa Bay, FL</option>
+        <option value="TFX" style="background: #111720;">TFX - Great Falls, MT</option>
+        <option value="TOP" style="background: #111720;">TOP - Topeka, KS</option>
+        <option value="TUS" style="background: #111720;">TUS - Tucson, AZ</option>
+        <option value="UIL" style="background: #111720;">UIL - Quillayute, WA</option>
+        <option value="UNR" style="background: #111720;">UNR - Rapid City, SD</option>
+        <option value="VBG" style="background: #111720;">VBG - Vandenberg AFB, CA</option>
+        <option value="VEF" style="background: #111720;">VEF - Las Vegas, NV</option>
+        <option value="YNE" style="background: #111720;">YNE - Norway House, MB</option>
+        <option value="YWG" style="background: #111720;">YWG - Winnipeg, MB</option>
+      </select>
 
-        <select id="custom-hour-select" style="background: var(--panel2); border: 1px solid var(--border); color: #fff; font-family: 'IBM Plex Mono', monospace; font-size: 14px; padding: 6px; border-radius: 4px; outline: none; cursor: pointer;">
-          <option value="00">00Z</option>
-          <option value="06">06Z</option>
-          <option value="12" selected>12Z</option>
-          <option value="14">14Z</option>
-          <option value="15">15Z</option>
-          <option value="16">16Z</option>
-          <option value="17">17Z</option>
-          <option value="18">18Z</option>
-          <option value="19">19Z</option>
-          <option value="20">20Z</option>
-          <option value="21">21Z</option>
-          <option value="22">22Z</option>
-        </select>
-      </div>
+      <select id="custom-hour-select" style="background: var(--panel2); border: 1px solid var(--border); color: #fff; font-family: 'IBM Plex Mono', monospace; font-size: 14px; padding: 6px; border-radius: 4px; outline: none; cursor: pointer;">
+        <option value="00" style="background: #111720;">00Z</option>
+        <option value="06" style="background: #111720;">06Z</option>
+        <option value="12" selected style="background: #111720;">12Z</option>
+        <option value="14" style="background: #111720;">14Z</option>
+        <option value="15" style="background: #111720;">15Z</option>
+        <option value="16" style="background: #111720;">16Z</option>
+        <option value="17" style="background: #111720;">17Z</option>
+        <option value="18" style="background: #111720;">18Z</option>
+        <option value="19" style="background: #111720;">19Z</option>
+        <option value="20" style="background: #111720;">20Z</option>
+        <option value="21" style="background: #111720;">21Z</option>
+        <option value="22" style="background: #111720;">22Z</option>
+      </select>
+    </div>
 
-      <div style="display: flex; gap: 8px; width: 90%; max-width: 320px; justify-content: center; margin-top: 2px;">
-        <button id="submit-custom-sounding" style="flex: 1; font-family: 'Bebas Neue', sans-serif; font-size: 14px; letter-spacing: 1px; color: #fff; background: rgba(58,160,255,0.25); border: 1px solid var(--accent); padding: 6px; border-radius: 4px; cursor: pointer;">Load Dataset</button>
-        <button id="reset-auto-sounding" style="flex: 1; font-family: 'Bebas Neue', sans-serif; font-size: 14px; letter-spacing: 1px; color: #80e0a0; background: transparent; border: 1px solid #80e0a0; padding: 6px; border-radius: 4px; cursor: pointer;">↺ Auto</button>
-        <button id="cancel-custom-sounding" style="flex: 1; font-family: 'Bebas Neue', sans-serif; font-size: 14px; letter-spacing: 1px; color: var(--muted); background: transparent; border: 1px solid var(--border); padding: 6px; border-radius: 4px; cursor: pointer;">Cancel</button>
-      </div>
-      
-      <div id="selector-error-msg" style="font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; color: #ff6060; text-align: center; min-height: 16px;"></div>
+    <div style="display: flex; gap: 8px; width: 90%; max-width: 320px; justify-content: center; margin-top: 2px;">
+      <button id="submit-custom-sounding" style="flex: 1; font-family: 'Bebas Neue', sans-serif; font-size: 14px; letter-spacing: 1px; color: #fff; background: rgba(58,160,255,0.25); border: 1px solid var(--accent); padding: 6px; border-radius: 4px; cursor: pointer;">Load Dataset</button>
+      <button id="reset-auto-sounding" style="flex: 1; font-family: 'Bebas Neue', sans-serif; font-size: 14px; letter-spacing: 1px; color: #80e0a0; background: transparent; border: 1px solid #80e0a0; padding: 6px; border-radius: 4px; cursor: pointer;">↺ Auto</button>
+      <button id="cancel-custom-sounding" style="flex: 1; font-family: 'Bebas Neue', sans-serif; font-size: 14px; letter-spacing: 1px; color: var(--muted); background: transparent; border: 1px solid var(--border); padding: 6px; border-radius: 4px; cursor: pointer;">Cancel</button>
+    </div>
+    
+    <div id="selector-error-msg" style="font-family: 'IBM Plex Sans', sans-serif; font-size: 11px; color: #ff6060; text-align: center; min-height: 16px;"></div>
   </div>
 
   <button id="cloud-overlay-btn">☁</button>
@@ -1371,6 +1400,7 @@
 // Global states to maintain manual override persistence
 let manualStationOverride = null;
 let manualHourOverride = null;
+let manualDateOverride = null;
 let modelStationICAO = 'kcid'; 
 let isModelSoundingActive = false;
 //window.loadModelSounding = loadModelSounding;
@@ -2082,14 +2112,6 @@ async function fetchForecast() {
       const headerCSS = riskStyle 
         ? `background-color: ${riskStyle.bg}; color: ${riskStyle.text}; font-weight: 600;` 
         : `background-color: rgba(255,255,255,0.03); color: var(--muted);`;
-      /*
-      const precipChance = day.probabilityOfPrecipitation?.value;
-      const roundedPrecip = Math.round(precipChance/10)*10
-      const precipPeriod = getPrecipPeriod(day.detailedForecast);
-      const precipStr = roundedPrecip != null && roundedPrecip > 10
-        ? `${roundedPrecip}%${precipPeriod ? ' ' + precipPeriod : ''}`
-        : '';
-      */
       const dayPop = day.probabilityOfPrecipitation?.value || 0;
       const nightPop = night?.probabilityOfPrecipitation?.value || 0;
       const maxPop = Math.max(dayPop, nightPop);
@@ -2812,6 +2834,81 @@ function hexToRgb(hex) {
   return `${r}, ${g}, ${b}`;
 }
 
+// A complete drop-in replacement that shifts brightness using the HSV space
+function getLighterHsv(hex, percentIncrease) {
+  // 1. Parse HEX to RGB
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+
+  // 2. Convert RGB to HSV
+  const rNorm = r / 255, gNorm = g / 255, bNorm = b / 255;
+  const max = Math.max(rNorm, gNorm, bNorm);
+  const min = Math.min(rNorm, gNorm, bNorm);
+  const delta = max - min;
+
+  let h = 0;
+  let s = max === 0 ? 0 : delta / max;
+  let v = max; // Value is just the maximum RGB component
+
+  if (delta !== 0) {
+    if (max === rNorm) {
+      h = ((gNorm - bNorm) / delta) + (gNorm < bNorm ? 6 : 0);
+    } else if (max === gNorm) {
+      h = ((bNorm - rNorm) / delta) + 2;
+    } else {
+      h = ((rNorm - gNorm) / delta) + 4;
+    }
+    h /= 6;
+  }
+
+  // Convert to standard 360, 100%, 100% ranges
+  h = h * 360;
+  s = s * 100;
+  v = v * 100;
+
+  // 3. Modify the Value (Brightness) component
+  // Using proportional scaling means dark colors get a big boost, 
+  // while already-bright colors won't clipping aggressively.
+  v = v + (100 - v) * (percentIncrease / 100);
+  v = Math.min(100, Math.max(0, v));
+
+  // 4. Convert HSV back to RGB
+  h /= 360; s /= 100; v /= 100;
+  let rOut, gOut, bOut;
+
+  const i = Math.floor(h * 6);
+  const f = h * 6 - i;
+  const p = v * (1 - s);
+  const q = v * (1 - f * s);
+  const t = v * (1 - (1 - f) * s);
+
+  switch (i % 6) {
+    case 0: rOut = v; gOut = t; bOut = p; break;
+    case 1: rOut = q; gOut = v; bOut = p; break;
+    case 2: rOut = p; gOut = v; bOut = t; break;
+    case 3: rOut = p; gOut = q; bOut = v; break;
+    case 4: rOut = t; gOut = p; bOut = v; break;
+    case 5: rOut = v; gOut = p; bOut = q; break;
+  }
+
+  // 5. Return standard RGB string readable by CSS
+  return `rgb(${Math.round(rOut * 255)}, ${Math.round(gOut * 255)}, ${Math.round(bOut * 255)})`;
+}
+
+// Returns the correct YYMMDD string for SPC sounding URLs.
+// Uses local date so that evening users (e.g. 20:00 CDT = 01:00 UTC next day)
+// still get the right date — UNLESS the sounding hour is 00z, in which case
+// the UTC date is correct (00z is midnight UTC, a real UTC date boundary).
+function soundingDateStr(soundingHour) {
+  const now = new Date();
+  const useUTC = (String(soundingHour) === '00');
+  const yy = String(useUTC ? now.getUTCFullYear() : now.getFullYear()).slice(2);
+  const mm = String((useUTC ? now.getUTCMonth() : now.getMonth()) + 1).padStart(2, '0');
+  const dd = String(useUTC ? now.getUTCDate() : now.getDate()).padStart(2, '0');
+  return `${yy}${mm}${dd}`;
+}
+
 async function fetchAlerts() {
   try {
     const res = await fetch(`https://api.weather.gov/alerts/active?point=${LAT},${LON}`);
@@ -2857,14 +2954,15 @@ async function fetchAlerts() {
         
         // Define transparency levels: 10% for background, 30% for border
         const bgRgba = `rgba(${rgb}, 0.10)`; 
-        const borderRgba = `rgba(${rgb}, 0.30)`;
+        const borderRgba = `rgba(${rgb}, 0.50)`;
+        const textColor = getLighterHsv(hex, 30);
 
         const onset = a.properties.onset;
         const ends  = a.properties.ends || a.properties.expires;
 
         // Apply styles: transparent background/border, solid text
-        html += `<div class="alert-box" style="background: ${bgRgba}; border-color: ${borderRgba}; color: ${hex};">
-          <div class="alert-head" style="color: ${hex};">${eventName}</div>
+        html += `<div class="alert-box" style="background: ${bgRgba}; border-color: ${borderRgba}; color: ${textColor};">
+          <div class="alert-head" style="color: ${textColor};">${eventName}</div>
           A ${eventName} has been issued from ${formatAlertTime(onset)} until ${formatAlertTime(ends)}<br><br>
           ${eventName.includes('Warning')
             ? truncateDescription(a.properties.description)
@@ -3028,7 +3126,7 @@ function startAlertsCycle(waitMs = 2 * 60 * 1000) {
 }
 
 
-function getSPCTime() {
+/*function getSPCTime() {
   const now = new Date();
 
   const year = String(now.getUTCFullYear()).slice(2);
@@ -3038,6 +3136,10 @@ function getSPCTime() {
   const hour = now.getUTCHours() >= 12 ? "12" : "00";
 
   return `${year}${month}${day}${hour}`;
+}*/
+function getSPCTime() {
+  const hour = new Date().getUTCHours() >= 12 ? "12" : "00";
+  return `${soundingDateStr(hour)}${hour}`;
 }
 
 async function fetchSPCSounding() {
@@ -5138,6 +5240,7 @@ function plotSkewT(data) {
 
   setTimeout(() => {
     drawHodograph(data);
+    drawOmegaPanel(data, CAPE);
   });
 }
 
@@ -5308,6 +5411,108 @@ function drawHodograph(data) {
 
   document.getElementById('skewt').appendChild(svg);
 }
+// ---- OMEGA (VERTICAL VELOCITY) LEFT-MARGIN PANEL ----
+function drawOmegaPanel(data, cape) {
+  const existing = document.getElementById('omega-overlay');
+  if (existing) existing.remove();
+
+  // Only draw when model data has omega AND CAPE >= 500
+  const hasOmeg = data.some(d => d.omeg != null);
+  if (!hasOmeg || cape < 500) return;
+
+  const skewTEl = document.getElementById('skewt');
+  if (!skewTEl) return;
+
+  const W = 46, H = skewTEl.clientHeight || 300;
+  const padT = 10, padB = 30; // match Plotly margin t/b
+  const plotH = H - padT - padB;
+
+  // Pressure → Y pixel (log scale matching Plotly yaxis)
+  const pMin = 100, pMax = Math.max(...data.map(d => d.pres));
+  function presToY(p) {
+    const frac = (Math.log10(pMax) - Math.log10(p)) / (Math.log10(pMax) - Math.log10(pMin));
+    return padT + (1 - frac) * plotH;
+  }
+
+  // Omega range — clamp to ±50 µb/s, zero at center
+  const omegLevels = data.filter(d => d.omeg != null).sort((a, b) => b.pres - a.pres);
+  const absMax = 15;
+  const zeroX  = W / 2;        // center line = omega=0
+  const scale  = (W * 0.46) / absMax; // how many px per µb/s
+
+  function omegToX(o) {
+    // Positive omega = descending = rightward (warm/red convention flipped):
+    // BUFKIT plots +omega to LEFT (upward=negative=blue=cyan, downward=positive=red)
+    return zeroX - Math.max(-absMax, Math.min(absMax, o)) * scale;
+  }
+
+  // Build SVG
+  let pathD = '';
+  omegLevels.forEach((d, i) => {
+    const x = omegToX(d.omeg);
+    const y = presToY(d.pres);
+    pathD += i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`;
+  });
+
+  // Color segments by sign (cyan = upward/negative, orange-red = downward/positive)
+  let segments = '';
+  for (let i = 0; i < omegLevels.length - 1; i++) {
+    const d0 = omegLevels[i], d1 = omegLevels[i + 1];
+    const x0 = omegToX(d0.omeg), y0 = presToY(d0.pres);
+    const x1 = omegToX(d1.omeg), y1 = presToY(d1.pres);
+    const avgO = (d0.omeg + d1.omeg) / 2;
+    const color = avgO < 0 ? 'rgba(191,76,76,0.90)' : 'rgba(0,76,153,0.90)';
+    segments += `<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${color}" stroke-width="1.5"/>`;
+  }
+
+  // Zero-line + shaded fill (cyan left of zero, red right)
+  let fillNeg = `M ${zeroX} ${presToY(pMax)}`;
+  let fillPos = `M ${zeroX} ${presToY(pMax)}`;
+  omegLevels.forEach(d => {
+    const x = omegToX(d.omeg);
+    const y = presToY(d.pres);
+    if (d.omeg < 0) { fillNeg += ` L ${x.toFixed(1)} ${y.toFixed(1)}`; fillPos += ` L ${zeroX} ${y.toFixed(1)}`; }
+    else            { fillPos += ` L ${x.toFixed(1)} ${y.toFixed(1)}`; fillNeg += ` L ${zeroX} ${y.toFixed(1)}`; }
+  });
+  fillNeg += ` L ${zeroX} ${presToY(pMin)} Z`;
+  fillPos += ` L ${zeroX} ${presToY(pMin)} Z`;
+
+  // Pressure tick lines at standard levels
+  const tickPresets = [1000,925,850,700,600,500,400,300,250,200,150,100];
+  const ticks = tickPresets.filter(p => p <= pMax && p >= pMin).map(p => {
+    const y = presToY(p).toFixed(1);
+    return `<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="rgba(255,255,255,0.08)" stroke-width="0.5"/>`;
+  }).join('');
+
+  // Header label
+  const headerY = padT + 15;
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" style="display:block;">
+    <text x="${W/2}" y="${headerY}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="7" fill="rgba(230,220,255,0.7)" letter-spacing="1">OMEGA</text>
+    <text x="${(zeroX - scale*10).toFixed(1)}" y="${padT+8}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="6" fill="rgba(0,230,255,0.6)">+10</text>
+    <text x="${(zeroX + scale*10).toFixed(1)}" y="${padT+8}" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="6" fill="rgba(255,100,60,0.6)">-10</text>
+    ${ticks}
+    <path d="${fillNeg}" fill="rgba(0,200,255,0.10)"/>
+    <path d="${fillPos}" fill="rgba(255,80,40,0.10)"/>
+    <line x1="${zeroX}" y1="${padT}" x2="${zeroX}" y2="${H - padB}" stroke="rgba(255,255,255,0.25)" stroke-width="0.8" stroke-dasharray="3,3"/>
+    ${segments}
+  </svg>`;
+
+  const div = document.createElement('div');
+  div.id = 'omega-overlay';
+  div.style.cssText = `
+    position: absolute;
+    top: 0; left: 0;
+    width: ${W}px;
+    height: ${H}px;
+    z-index: 12;
+    pointer-events: none;
+    background: rgba(17,23,32,0.55);
+    border-right: 1px solid rgba(100,180,255,0.12);
+  `;
+  div.innerHTML = svg;
+  skewTEl.appendChild(div);
+}
 
 // ---- UPPER AIR SOUNDING — DVN with ILX fallback ----
 // Rules:
@@ -5316,39 +5521,49 @@ function drawHodograph(data) {
 //     some 12z launches, so prefer ILX during that window as a cross-check.
 //   - Within each branch: try primary station first, fall back to secondary
 //     if the fetch fails or returns empty/error data.
+async function fetchSPCSoundingFor(station, overrideHour, overrideDate) {
+  const utcH = new Date().getUTCHours();
+  
+  // If overrideDate is provided, use it; otherwise, use current date
+  // Assuming the format needed is YYMMDD
+  //const datePart = overrideDate || new Date().toISOString().slice(2, 10).replace(/-/g, '');
+  // If overrideDate exists, use it; otherwise, calculate today's date
+  let datePart;
+  if (overrideDate) {
+    datePart = overrideDate;
+  } else {
+    // This generates the YYMMDD for today if no date is provided
+    datePart = new Date().toISOString().slice(2, 10).replace(/-/g, '');
+  }
 
-
-async function fetchSPCSoundingFor(station, overrideHour) {
-  const now  = new Date();
-  const yy   = String(now.getUTCFullYear()).slice(2);
-  const mm   = String(now.getUTCMonth() + 1).padStart(2, '0');
-  const dd   = String(now.getUTCDate()).padStart(2, '0');
-  const utcH = now.getUTCHours();
-
-  // Pick the most recent synoptic time that's had time to arrive
-  // 00z available ~03z+, 12z available ~15z+, 18z available ~19z+
   let hour;
   if (overrideHour !== undefined) hour = overrideHour;
   else if (utcH >= 19) hour = '18';
   else if (utcH >= 12) hour = '12';
   else hour = '00';
 
-  const url = `https://www.spc.noaa.gov/exper/soundings/${yy}${mm}${dd}${hour}_OBS/${station}.txt`;
+  // Use the datePart and hour for the URL
+  const url = `https://www.spc.noaa.gov/exper/soundings/${datePart}${hour}_OBS/${station}.txt`;
+  
+  console.log('Fetching:', url);
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${station}`);
   const text = await res.text();
+  
   if (!text || text.includes('ERROR') || text.length < 100)
     throw new Error(`Bad data for ${station}`);
+    
   return { text, station, hour };
 }
 
-async function tryStations(primary, secondary, overrideHour) {
+
+async function tryStations(primary, secondary, overrideHour,overrideDate) {
   // Returns { text, station, hour } from whichever station succeeds first.
   try {
-    return await fetchSPCSoundingFor(primary, overrideHour);
+    return await fetchSPCSoundingFor(primary, overrideHour,overrideDate);
   } catch (e) {
     console.warn(`Sounding: ${primary} failed (${e.message}), trying ${secondary}`);
-    return await fetchSPCSoundingFor(secondary, overrideHour);   // throws if this also fails
+    return await fetchSPCSoundingFor(secondary, overrideHour,overrideDate);   // throws if this also fails
   }
 }
 
@@ -5365,21 +5580,26 @@ async function loadSounding() {
     
     let result;
     
-    // --- EVALUATE OVERRIDES VS AUTOMATIC ROUTING ---
+    // --- BRANCH: MANUAL OVERRIDE ---
     if (manualStationOverride) {
-      // User has manually locked a custom tracking target
       const targetHour = manualHourOverride || (prefer12zFallback ? '12' : '00');
-      result = await fetchSPCSoundingFor(manualStationOverride, targetHour);
-    } else {
-      // Fallback directly onto native automatic scheduled sequencing
+      // Directly call fetchSPCSoundingFor. 
+      // If this fails, we let the catch block handle the "unavailable" error 
+      // rather than trying to guess a different station for the user.
+      result = await fetchSPCSoundingFor(manualStationOverride, targetHour, manualDateOverride);
+      
+    } 
+    // --- BRANCH: AUTOMATIC ROUTING ---
+    else {
+      // ONLY now do we invoke the sequence/fallback logic
       if (prefer12zFallback) {
-        result = await tryStations('ILX', 'DVN');
+        result = await tryStations('ILX', 'DVN', '12', undefined);
       } else {
         try {
-          result = await tryStations('DVN', 'ILX');
+          result = await tryStations('DVN', 'ILX', undefined, undefined);
         } catch (e) {
           console.warn('DVN+ILX both failed, falling back to 12z ILX');
-          result = await tryStations('ILX', 'DVN', '12');
+          result = await tryStations('ILX', 'DVN', '12', undefined);
         }
       }
     }
@@ -5450,9 +5670,92 @@ const cancelBtn = document.getElementById('cancel-custom-sounding');
 const errorMsg = document.getElementById('selector-error-msg');
 const soundingStationLabel = document.getElementById('sounding-station');
 
+// --- 1. Populate the Date Dropdown ---
+function initSoundingDateDropdown() {
+  const dateSelect = document.getElementById('custom-date-select');
+
+  if (isModelSoundingActive) {
+    // --- MODE: RAP MODEL SOUNDING ---
+    if (dateSelect) dateSelect.style.display = 'none'; // Hide Date
+    // ... rest of your code ...
+  } else {
+    // --- MODE: OBSERVED SOUNDING ---
+    if (dateSelect) dateSelect.style.display = 'block';
+  
+    if (!dateSelect) return;
+
+    const today = new Date();
+    
+    // Clear existing
+    dateSelect.innerHTML = '';
+
+    // Generate last 9 days
+    for (let i = 0; i < 9; i++) {
+      const d = new Date();
+      d.setDate(today.getDate() - i);
+      
+      // Format: YYYYMMDD (needed for URL)
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const value = `${String(yyyy).slice(-2)}${mm}${dd}`; // e.g., 260611
+      
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = `${mm}/${dd}`; // Display as 06/11
+      option.style.background = '#111720'; 
+      option.style.color = '#fff';
+      dateSelect.appendChild(option);
+    }
+  }
+}
+
+initSoundingDateDropdown();
+
+
+// --- Handling the Custom Dataset Form Submission ---
+document.getElementById('submit-custom-sounding').addEventListener('click', () => {
+  const station = document.getElementById('custom-station-input').value;
+  const selectedDate = document.getElementById('custom-date-select').value; // Formatted as "YYYY-MM-DD"
+  const hour = document.getElementById('custom-hour-select').value;
+  const errorMsg = document.getElementById('selector-error-msg');
+
+  //const selectedDate = document.getElementById('custom-date-select').value;
+
+  fetchSPCSoundingFor(station, hour, selectedDate).then(data => {
+
+    if (!station) {
+      errorMsg.textContent = 'Please choose a sounding station code.';
+      return;
+    }
+    errorMsg.textContent = '';
+
+    // Parse out the YYYY-MM-DD string into components for the SPC URL structure
+    // Example: "2026-06-11" becomes year="26", month="06", day="11"
+    const yearShort = selectedDate.slice(0, 2);
+    const month = selectedDate.slice(2, 4);
+    const day = selectedDate.slice(4, 6);
+    
+    
+
+
+    // Construct the targeted SPC URL string format (YYMMDDHH)
+    const targetTimestamp = `${yearShort}${month}${day}${hour}`;
+    console.log(`Loading custom archive dataset for target timestamp: ${targetTimestamp}`);
+
+    // Now feed your target timestamp and station parameters into your primary text fetcher function
+    // Example: loadSoundingData(station, targetTimestamp);
+    
+    // Close out the modal presentation block
+    document.getElementById('sounding-selector-modal').style.display = 'none';
+  });
+});
+
+
 document.getElementById('reset-auto-sounding').addEventListener('click', () => {
   manualStationOverride = null;
   manualHourOverride = null;
+  manualDateOverride = null;
   if (soundingModal) soundingModal.style.display = 'none';
   removeTVKeyboard(); // Clean up if open
   loadSounding();
@@ -5466,33 +5769,54 @@ function removeTVKeyboard() {
 
 // Helper: Dynamically builds the high-contrast on-screen keyboard grid
 function injectTVKeyboard(targetInput) {
-  removeTVKeyboard(); // Prevent double injection
+  removeTVKeyboard(); 
 
-  const kbdContainer = document.createElement('div');
-  kbdContainer.id = 'tv-virtual-keyboard';
-  kbdContainer.style.cssText = "display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; width: 90%; max-width: 340px; margin-top: 10px; padding: 4px;";
+  // Master container that keeps everything together for easy removal
+  const masterContainer = document.createElement('div');
+  masterContainer.id = 'tv-virtual-keyboard';
+  masterContainer.style.cssText = "width: 90%; max-width: 340px; margin-top: 10px; padding: 4px; display: flex; flex-direction: column; gap: 6px;";
 
-  // Layout keys: A-Z, Backspace (⌫), and Clear (X)
-  const keys = [
-    'A','B','C','D','E','F','G',
-    'H','I','J','K','L','M','N',
-    'O','P','Q','R','S','T','U',
-    'V','W','X','Y','Z','⌫','CLR'
-  ];
+  // 1. SHORTCUT ROW
+  const shortcutRow = document.createElement('div');
+  shortcutRow.style.cssText = "display: flex; gap: 4px; width: 100%;";
+  
+  const shortcuts = ['CID', 'ALO', 'DSM', 'OMA', 'DBQ', 'MLI'];
+  shortcuts.forEach(s => {
+    const btn = document.createElement('button');
+    btn.textContent = s;
+    btn.type = 'button';
+    btn.style.cssText = "flex: 1; background: rgba(58,160,255,0.25); border: 1px solid rgba(58,160,255,0.5); color: #fff; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: bold; padding: 3px 0; border-radius: 4px; cursor: pointer; transition: background 0.1s;";
+    
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      targetInput.value = 'K' + s; // Automatically fills K+ICAO
+
+      // Delay for 1 second, then click the submit button
+      setTimeout(() => {
+        const submitBtn = document.getElementById('submit-custom-sounding');
+        if (submitBtn) {
+          submitBtn.click();
+        } else {
+          console.error("Could not find element with ID: submit-custom-sounding");
+        }
+      }, 500);
+    });
+    shortcutRow.appendChild(btn);
+  });
+
+  // 2. A-Z GRID
+  const kbdGrid = document.createElement('div');
+  kbdGrid.style.cssText = "display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px;";
+
+  const keys = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','⌫','CLR'];
 
   keys.forEach(key => {
     const btn = document.createElement('button');
     btn.textContent = key;
-    btn.type = 'button'; // Prevent form submittals
+    btn.type = 'button';
+    btn.style.cssText = "background: var(--panel); border: 1px solid var(--border); color: #fff; font-family: 'IBM Plex Mono', monospace; font-size: 14px; padding: 4px 0; border-radius: 4px; cursor: pointer;";
     
-    // Style matches your dashboard's high-contrast theme
-    btn.style.cssText = "background: var(--panel); border: 1px solid var(--border); color: #fff; font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 500; padding: 8px 0; border-radius: 4px; cursor: pointer; text-align: center; transition: background 0.1s;";
-    
-    // Simple focus visual effects for directional TV remotes
-    btn.onfocus = () => btn.style.background = 'rgba(58,160,255,0.2)';
-    btn.onblur = () => btn.style.background = 'var(--panel)';
-    
-    // Specific coloring for actions
     if (key === '⌫' || key === 'CLR') {
       btn.style.color = '#ff6060';
       btn.style.borderColor = 'rgba(255,96,96,0.3)';
@@ -5501,27 +5825,22 @@ function injectTVKeyboard(targetInput) {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      
-      if (key === 'CLR') {
-        targetInput.value = '';
-      } else if (key === '⌫') {
-        targetInput.value = targetInput.value.slice(0, -1);
-      } else {
-        // Enforce max 4 characters for ICAO codes
-        if (targetInput.value.length < 4) {
-          targetInput.value += key;
-        }
-      }
+      if (key === 'CLR') targetInput.value = '';
+      else if (key === '⌫') targetInput.value = targetInput.value.slice(0, -1);
+      else if (targetInput.value.length < 4) targetInput.value += key;
     });
-
-    kbdContainer.appendChild(btn);
+    kbdGrid.appendChild(btn);
   });
 
-  // Inject the keyboard right above the error message block inside your modal
+  // Assemble
+  masterContainer.appendChild(shortcutRow);
+  masterContainer.appendChild(kbdGrid);
+
   if (errorMsg) {
-    errorMsg.parentNode.insertBefore(kbdContainer, errorMsg);
+    errorMsg.parentNode.insertBefore(masterContainer, errorMsg);
   }
 }
+
 
 // Helper function to swap between a dropdown select and a text input box
 function convertStationInputElement(toTextInput) {
@@ -5604,28 +5923,49 @@ function convertStationInputElement(toTextInput) {
   return newElement;
 }
 
-// 1. Single Click: Open selection overlay modal safely for BOTH obs and model modes
+// 1. Single Click: Open selection overlay modal
 soundingStationLabel.addEventListener('click', (e) => {
   e.stopPropagation();
   if (errorMsg) errorMsg.textContent = '';
+  
+  const dateContainer = document.getElementById('custom-date-select');
+  const hourContainer = document.getElementById('custom-hour-select');
+
+  console.log("Current Sounding Mode (isModelSoundingActive):", isModelSoundingActive);
 
   if (isModelSoundingActive) {
     // --- MODE: RAP MODEL SOUNDING ---
     const stationInput = convertStationInputElement(true);
     if (stationInput) {
-      stationInput.value = ""; // Clear input automatically upon trigger
-      injectTVKeyboard(stationInput); // Mount the keys grid
+      stationInput.value = ""; 
+      injectTVKeyboard(stationInput); 
     }
-    if (hourSelect) hourSelect.style.display = 'none'; 
+    
+    // UI: Hide Date, SHOW Hour (populated dynamically)
+    if (dateContainer) dateContainer.style.setProperty('display', 'none', 'important'); 
+    if (hourContainer) hourContainer.style.setProperty('display', 'flex', 'important');
+    
+    populateModelHours(); // Populate the 18-hour list
+    
     if (submitBtn) submitBtn.textContent = "Load Model Sounding";
   } else {
     // --- MODE: OBSERVED SOUNDING ---
-    removeTVKeyboard(); // Wipe keyboard out if transitioning modes
+    removeTVKeyboard(); 
     const stationInput = convertStationInputElement(false);
     if (stationInput) {
       stationInput.value = manualStationOverride || "";
     }
-    if (hourSelect) hourSelect.style.display = 'block'; 
+    
+    // UI: SHOW Date, SHOW Hour
+    if (dateContainer) dateContainer.style.setProperty('display', 'flex', 'important'); 
+    if (hourContainer) hourContainer.style.setProperty('display', 'flex', 'important');
+
+    // Call the specific Observed populator
+    populateObservedHours();
+    
+    // If you need to reset hours for Observed to fixed list, do it here:
+    // restoreFixedHours(); 
+    
     if (submitBtn) submitBtn.textContent = "Submit Selection";
   }
   
@@ -5641,60 +5981,41 @@ cancelBtn.addEventListener('click', () => {
 // 3. Process Selection and Fetch Details
 submitBtn.addEventListener('click', async () => {
   const stationSelect = document.getElementById('custom-station-input');
+  const errorMsg = document.getElementById('selector-error-msg');
   if (!stationSelect || !errorMsg) return;
   
-  const targetStation = stationSelect.value.trim().toUpperCase(); // Ensure forcing upper case
+  const targetStation = stationSelect.value.trim().toUpperCase();
+  const targetHour = document.getElementById('custom-hour-select').value;
+
   if (!targetStation) {
-    errorMsg.style.color = '#ff6060';
     errorMsg.textContent = 'Please enter a station identifier.';
     return;
   }
-  
-  // BRANCH A: Handle Model Sounding Submission
+
+  // BRANCH A: MODEL SOUNDING
   if (isModelSoundingActive) {
-    errorMsg.style.color = 'var(--muted)';
-    errorMsg.textContent = 'Loading model file...';
-    
-    if (soundingModal) soundingModal.style.display = 'none';
-    removeTVKeyboard();
-    await loadModelSounding(targetStation);
-    return; 
+    errorMsg.textContent = 'Loading model data...';
+    // Logic: Do not look for a date. Use station and hour directly.
+    await loadModelSounding(targetStation, targetHour);
+    soundingModal.style.display = 'none';
+    return;
   }
-  
-  // BRANCH B: Handle Observed Sounding Submission
-  if (!hourSelect) return;
-  const targetHour = hourSelect.value;
-  
-  errorMsg.style.color = 'var(--muted)';
-  errorMsg.textContent = 'Validating file on SPC server...';
-  
-  const now = new Date();
-  const yy = String(now.getUTCFullYear()).slice(2);
-  const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(now.getUTCDate()).padStart(2, '0');
-  
-  const validationUrl = `https://www.spc.noaa.gov/exper/soundings/${yy}${mm}${dd}${targetHour}_OBS/${targetStation}.txt`;
+
+  // BRANCH B: OBSERVED SOUNDING
+  errorMsg.textContent = 'Validating SPC data...';
+  const targetDate = document.getElementById('custom-date-select').value;
   
   try {
-    const testRes = await fetch(validationUrl);
-    if (!testRes.ok) throw new Error(`Cycle unavailable (HTTP ${testRes.status})`);
-    
-    const testText = await testRes.text();
-    if (!testText || testText.includes('ERROR') || testText.length < 100) {
-      throw new Error('Data empty or station missing for this hour');
-    }
-    
+    // Set the globals so loadSounding() picks them up
     manualStationOverride = targetStation;
     manualHourOverride = targetHour;
+    manualDateOverride = targetDate;
     
-    if (soundingModal) soundingModal.style.display = 'none';
-    removeTVKeyboard();
-    await loadSounding();
-    
+    // Now call it without arguments
+    await loadSounding(); 
+    soundingModal.style.display = 'none';
   } catch (err) {
-    errorMsg.style.color = '#ff6060';
-    errorMsg.textContent = 'Data unavailable at this time.';
-    console.warn(`Validation failed for ${targetStation} at ${targetHour}Z:`, err.message);
+    errorMsg.textContent = 'Data unavailable.';
   }
 });
 
@@ -5738,11 +6059,15 @@ const SAT_SOURCES = {
   meso: {
     url: 'https://www.spc.noaa.gov/exper/mesoanalysis/new/viewsector.php?sector=20#',
     label: 'SPC — Mesoscale Analysis',
+  },
+  fronts: {
+    url: 'https://www.wpc.ncep.noaa.gov/html/sfc-zoom.php',
+    label: 'WPC — SURFACE FRONTS',
   }
 };
 
 let satMode = localStorage.getItem('satMode') || 'satellite';
-const SOURCE_ORDER = ['satellite', 'radar', 'spc', 'meso'];
+const SOURCE_ORDER = ['satellite', 'radar', 'spc', 'meso', 'fronts'];
 
 function cycleSource(target) {
 
@@ -5780,11 +6105,13 @@ function cycleSource(target) {
   document.getElementById('sat-toggle').textContent = others[0].toUpperCase();
   document.getElementById('spc-toggle').textContent = others[1].toUpperCase();
   document.getElementById('meso-toggle').textContent = others[2].toUpperCase();
+  document.getElementById('fronts-toggle').textContent = others[3].toUpperCase();
 
   // Update onclick targets so each button goes to the right place
   document.getElementById('sat-toggle').onclick = () => cycleSource(others[0]);
   document.getElementById('spc-toggle').onclick = () => cycleSource(others[1]);
   document.getElementById('meso-toggle').onclick = () => cycleSource(others[2]);
+  document.getElementById('fronts-toggle').onclick = () => cycleSource(others[3]);
   
 
   if (goingSPC) {
@@ -6274,48 +6601,85 @@ function toggleModel() {
   if (isModelSoundingActive) loadModelSounding();
 }
 
+// A. POPULATE MODEL HOURS (Dynamic)
+function populateModelHours() {
+  const hourSelect = document.getElementById('custom-hour-select');
+  if (!hourSelect) return;
+  hourSelect.innerHTML = ''; 
+  const now = new Date();
+  for (let i = -1; i <= 17; i++) {
+    const d = new Date(now.getTime() + (i * 60 * 60 * 1000));
+    const h = String(d.getUTCHours()).padStart(2, '0');
+    const opt = document.createElement('option');
+    opt.value = h;
+    opt.textContent = `${h}Z`;
+    opt.style.background = '#111720';
+    hourSelect.appendChild(opt);
+  }
+}
+
+// B. POPULATE OBSERVED HOURS (The original static list)
+function populateObservedHours() {
+  const hourSelect = document.getElementById('custom-hour-select');
+  if (!hourSelect) return;
+  hourSelect.innerHTML = '';
+  const hours = ['00', '06', '12', '14', '15', '16', '17', '18', '19', '20', '21', '22'];
+  
+  hours.forEach(h => {
+    const opt = document.createElement('option');
+    opt.value = h;
+    opt.textContent = `${h}Z`;
+    opt.style.background = '#111720';
+    hourSelect.appendChild(opt);
+  });
+}
+
+
 // ---- RAP MODEL SOUNDING (BUFKIT) — loads on click of "Upper Air Sounding" title ----
-async function loadModelSounding(icao = null) {
+async function loadModelSounding(icao = null, targetHour = null) {
   if (icao) {
     const cleaned = icao.trim().toUpperCase();
     modelStationICAO = (cleaned.length === 3 ? 'K' + cleaned : cleaned).toLowerCase();
   }
   isModelSoundingActive = true;
   const label = document.getElementById('sounding-station');
-  //const label = document.getElementById('section-title');
   label.textContent = 'Fetching model data…';
   label.style.color = 'var(--muted)';
 
-  // Try model hours from (current UTC - 1) down to (current UTC - 6)
-  // RAP is hourly; allow ~1hr for file availability
-  const utcH = new Date().getUTCHours();
-  const hoursToTry = Array.from({ length: 6 }, (_, i) => (utcH - 1 - i + 24) % 24);
-
   let text = null;
-  let usedHour = null;
-  let BestTime = null;
-  const model = currentModel; // "HRRR" or "RAP" if you want to try that instead (but it's often unavailable for KCID)
+  let usedHour = targetHour; 
+  const model = currentModel;
 
-  
-
-  for (const h of hoursToTry) {
-    const hStr = String(h).padStart(2, '0');
-    //console.log(`Trying ${model} hour ${hStr}z for sounding…`);
-    
-    //const url  = `https://corsproxy.io/?url=https://www.meteo.psu.edu/bufkit/data/${model}/20/${model}_kcid.buf`;
-    //const url  = `https://corsproxy.io/?url=https://www.meteo.psu.edu/bufkit/data/${model.toUpperCase()}/${hStr}/${model.toLowerCase()}_kcid.buf`;
-    //const url  = `https://corsproxy.io/?url=https://www.meteo.psu.edu/bufkit/data/RAP/${hStr}/rap_kcid.buf`;
-    //const url = `https://corsproxy.io/?url=https://metfs1.agron.iastate.edu/data/bufkit/${model.toLowerCase()}/${model.toLowerCase()}_kcid.buf`; // alternative RAP source that seems more reliable for KCID
+  // --- FETCHING LOGIC ---
+  if (targetHour) {
+    // MANUAL PATH: Skip the loop, go straight to the file for this hour
     const url = `https://corsproxy.io/?url=https://metfs1.agron.iastate.edu/data/bufkit/${model.toLowerCase()}/${model.toLowerCase()}_${modelStationICAO}.buf`;
+    console.log('BUFKIT URL (Manual):', url);
     try {
       const res = await fetch(url);
-      if (!res.ok) continue;
-      const t = await res.text();
-      if (!t || t.length < 200) continue;
-      text     = t;
-      usedHour = hStr;
-      break;
-    } catch { continue; }
+      if (res.ok) {
+        const t = await res.text();
+        if (t && t.length >= 200) text = t;
+      }
+    } catch (e) { console.warn("Manual fetch failed", e); }
+  } else {
+    // AUTO PATH: Use your existing loop to find the valid file
+    const utcH = new Date().getUTCHours();
+    const hoursToTry = Array.from({ length: 6 }, (_, i) => (utcH - 1 - i + 24) % 24);
+    
+    for (const h of hoursToTry) {
+      const hStr = String(h).padStart(2, '0');
+      const url = `https://corsproxy.io/?url=https://metfs1.agron.iastate.edu/data/bufkit/${model.toLowerCase()}/${model.toLowerCase()}_${modelStationICAO}.buf`;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) continue;
+        const t = await res.text();
+        if (!t || t.length < 200) continue;
+        text = t;
+        usedHour = hStr; // Record the hour found by the loop
+        break;
+      } catch { continue; }
+    }
   }
 
   if (!text) {
@@ -6324,8 +6688,9 @@ async function loadModelSounding(icao = null) {
     return;
   }
 
-  // Parse BUFKIT — extract the first time step's SNPARM sounding block
-  const data = parseBUFKIT(text);
+  // --- PARSING & PLOTTING ---
+  // Pass the targetHour to the parser so it knows which block to pick
+  const data = parseBUFKIT(text, targetHour); 
 
   if (!data || data.length < 5) {
     label.textContent = `${model} parse failed`;
@@ -6334,29 +6699,31 @@ async function loadModelSounding(icao = null) {
   }
 
   currentSoundingData = data;
-  //label.textContent   = `RAP KCID — ${usedHour}z`;
-  //label.textContent   = `CID - ${usedHour}z`;
-   label.textContent = `${modelStationICAO.toUpperCase()} - ${usedHour}z`;
+  
+  // Title update
+  label.textContent = `${modelStationICAO.toUpperCase()} - ${usedHour}z`;
   document.querySelector('#sounding .section-title').textContent = `${model} Sounding`;
   document.querySelector('#sounding .section-title').onclick = () => loadObsSounding();
-  label.style.color   = '#c084fc'; // purple to distinguish from obs
+  label.style.color = '#c084fc'; 
 
   const modelBtn = document.getElementById('model-toggle-btn');
   if (modelBtn) modelBtn.style.display = 'block';
 
-  // Re-run parcel selection and plot
+  // --- PARCEL CALCULATIONS (PRESERVED) ---
   const wxReady = WxTemp != null && WxDew != null && !isNaN(WxTemp) && !isNaN(WxDew);
-    const modeOrder = wxReady ? ['WX', 'SB', 'ML', 'MU'] : ['SB', 'ML', 'MU'];
-    const computeFns = {
-      WX: () => { parcelMode = 'WX'; return computeParcelPath(data); },
-      SB: () => { parcelMode = 'SB'; return computeParcelPath(data); },
-      ML: () => { parcelMode = 'ML'; return computeMLParcelPath(data); },
-      MU: () => { parcelMode = 'MU'; return computeMUParcelPath(data); },
-    };
-    for (const mode of modeOrder) {
-      const result = computeFns[mode]();
-      if (isValidParcel(result)) break;
-    };
+  const modeOrder = wxReady ? ['WX', 'SB', 'ML', 'MU'] : ['SB', 'ML', 'MU'];
+  const computeFns = {
+    WX: () => { parcelMode = 'WX'; return computeParcelPath(data); },
+    SB: () => { parcelMode = 'SB'; return computeParcelPath(data); },
+    ML: () => { parcelMode = 'ML'; return computeMLParcelPath(data); },
+    MU: () => { parcelMode = 'MU'; return computeMUParcelPath(data); },
+  };
+  
+  for (const mode of modeOrder) {
+    const result = computeFns[mode]();
+    if (isValidParcel(result)) break;
+  }
+
   function isValidParcel(r) {
     if (!r) return false;
     return !r.parcelPath.some(pt => {
@@ -6365,13 +6732,15 @@ async function loadModelSounding(icao = null) {
         Math.abs(d.pres - pt.pres) < Math.abs(closest.pres - pt.pres) ? d : closest);
       return !isNaN(env.dew) && pt.temp < env.dew;
     });
-  };
+  }
+
   updateParcelButtons();
   plotSkewT(data);
 }
 
+
 // ---- BUFKIT parser — extracts pressure/temp/dew/wind from first time step ----
-function parseBUFKIT(text) {
+function parseBUFKIT(text, targetHour) {
   // Split the full file into per-timestep blocks by finding all STID header lines
   const lines = text.split('\n');
   
@@ -6395,19 +6764,34 @@ function parseBUFKIT(text) {
   if (!blocks.length) return [];
 
   // Find the block whose time is closest to now without exceeding it
-  const nowUTC = new Date();
-  //console.log('Current UTC time:', nowUTC.toISOString().replace('T', ' ').slice(0,16), 'UTC');
-  let best = blocks[0];
-  for (const b of blocks) {
-    if (b.dt <= nowUTC && b.dt > best.dt) best = b;
-    // If all blocks are in the future, fall back to the earliest
-    if (best.dt > nowUTC) best = blocks[0];
+  let best;
+  
+  if (targetHour !== undefined && targetHour !== null && targetHour !== "") {
+    const h = parseInt(targetHour);
+    // Find the specific block matching the user's selection
+    best = blocks.find(b => b.dt.getUTCHours() === h);
+    
+    // Fallback if that specific hour isn't in the file
+    if (!best) {
+      console.warn(`Target hour ${h}Z not found, defaulting to latest available.`);
+      // Get the latest block
+      best = blocks.reduce((latest, b) => (b.dt > latest.dt ? b : latest), blocks[0]);
+    }
+} else {
+    // AUTO MODE: Original "closest to now" logic
+    const nowUTC = new Date();
+    best = blocks[0];
+    for (const b of blocks) {
+      if (b.dt <= nowUTC && b.dt > best.dt) best = b;
+      if (best.dt > nowUTC) best = blocks[0];
+    }
   }
   // Determine line range: from best.lineIdx to next block's lineIdx (or end of file)
   const startIdx = best.lineIdx;
   const nextBlock = blocks.find(b => b.lineIdx > startIdx);
   const endIdx = nextBlock ? nextBlock.lineIdx : lines.length;
-  
+  console.log('Bufkit index Start:',startIdx);
+  console.log('Bufkit index End:',endIdx);
 
   // Find the SNPARM line within this block to get column order
   let snparmCols = null;
@@ -6441,12 +6825,14 @@ function parseBUFKIT(text) {
 
       const pres = row['PRES'], temp = row['TMPC'], dew = row['DWPC'];
       const wdir = row['DRCT'], wspd = row['SKNT'], hght = row['HGHT'];
+      const omeg = row['OMEG'];
 
       if (!isNaN(pres) && !isNaN(temp) && pres > 100 && pres < 1100 && temp > -100 && temp < 100) {
         const cleanDew  = (!isNaN(dew)  && dew  > -9990) ? dew  : null;
         const cleanWdir = (!isNaN(wdir) && wdir > -9990) ? wdir : null;
         const cleanWspd = (!isNaN(wspd) && wspd > -9990) ? wspd : null;
         const cleanHght = (!isNaN(hght) && hght > -9990) ? hght : null;
+        const cleanOmeg = (!isNaN(omeg) && omeg > -9990) ? omeg : null;
         let frost = null;
         if (cleanDew !== null && cleanDew < 0) {
           const A = 17.2694 * cleanDew / (cleanDew + 237.3);
@@ -6461,6 +6847,7 @@ function parseBUFKIT(text) {
           wdir: cleanWdir,
           wspd: cleanWspd,
           frost,
+          omeg: cleanOmeg,
         });
       }
       i += 2; // consume both lines
@@ -6468,6 +6855,7 @@ function parseBUFKIT(text) {
       i += 1;
     }
   }
+  console.log(data[0]);
   return data;
 }
 
