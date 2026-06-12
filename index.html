@@ -1403,6 +1403,7 @@ let manualHourOverride = null;
 let manualDateOverride = null;
 let modelStationICAO = 'kcid'; 
 let isModelSoundingActive = false;
+let lastSelectedModelHour = null;
 //window.loadModelSounding = loadModelSounding;
 
 const CLOUD_SVG_PATHS = {
@@ -4126,6 +4127,16 @@ function plotSkewT(data) {
   let CAPE03 = 0;
   let CAPE_below_LFC = 0;
 
+  function getSaturationMixingRatio(T, P) {
+    // T in Celsius, P in hPa/mb
+    // 1. Calculate saturation vapor pressure (es) in hPa
+    const es = 6.112 * Math.exp((17.67 * T) / (T + 243.5));
+    // 2. Calculate saturation mixing ratio (qs) in kg/kg
+    // Formula: 0.622 * es / (P - 0.378 * es)
+    const qs = 0.622 * es / (P - 0.378 * es);
+    return qs;
+  }
+
   // ---- PRE-COMPUTE CAPE so cloud classification has the real value ----
   if (parcelResult) {
     const { parcelPath } = parcelResult;
@@ -4134,10 +4145,18 @@ function plotSkewT(data) {
     const skewAngleC = skewAngleDegC * Math.PI / 180;
     const scaleFactorC = 40;
 
+    const surfaceDewPoint = skewDew[0];
+    const qt = getSaturationMixingRatio(surfaceDewPoint, parcelPath[0].pres);
+    console.log(surfaceDewPoint);
+    let CAPELayer = 0;
+    let CAPELayerb = 0;
+    let vertMoSq = 0;
+    let DensityLayer = 0;
     for (let i = 0; i < parcelPath.length - 1; i++) {
       const P1 = parcelPath[i].pres;
       const P2 = parcelPath[i + 1].pres;
       if (P1 <= parcelResult.P_LCL && P2 <= parcelResult.P_LCL) {
+        CAPELayerb = CAPELayer;
         const skewOff1 = Math.log(P0c / P1) * Math.tan(skewAngleC) * scaleFactorC;
         const skewOff2 = Math.log(P0c / P2) * Math.tan(skewAngleC) * scaleFactorC;
         const env1 = data.reduce((c, d) => Math.abs(d.pres - P1) < Math.abs(c.pres - P1) ? d : c);
@@ -4155,6 +4174,55 @@ function plotSkewT(data) {
           const dz = (287.05 * TvAvg / 9.81) * Math.log(P1 / P2);
           CAPE += ((b1 + b2) / 2) * dz;
         }
+
+        const TvP1 = tParcel1 + 273.15, TvP2 = tParcel2 + 273.15;
+        const TvE1 = tEnv1    + 273.15, TvE2 = tEnv2    + 273.15;
+
+        
+        // Apply Water Loading (ql) to buoyancy (as discussed previously)
+        const qs1 = getSaturationMixingRatio(tParcel1, P1);
+        const qs2 = getSaturationMixingRatio(tParcel2, P2);
+        let ql1 = Math.min(Math.max(0, qt - qs1), 0.003); // Cap at 3g/kg
+        let ql2 = Math.min(Math.max(0, qt - qs2), 0.003);
+
+        // --- MODIFIED: Apply Water Loading (ql) to buoyancy ---
+        // Formula: g * ( (TvP - TvE) / TvE - ql )
+        const b1 = 9.81 * (((TvP1 - TvE1) / TvE1) - ql1);
+        const b2 = 9.81 * (((TvP2 - TvE2) / TvE2) - ql2);
+        //const b1 = 9.81 * (TvP1 - TvE1) / TvE1;
+        //const b2 = 9.81 * (TvP2 - TvE2) / TvE2;
+
+        const TvAvg = (TvP1 + TvP2) / 2;
+        const dz = (287.05 * TvAvg / 9.81) * Math.log(P1 / P2);
+        const layerEnergy = ((b1 + b2) / 2) * dz;
+        
+        // A quadratic drag curve to simulate entrainment AND upper-level pressure perturbation
+        // Formula: (P1 / 1000)^2
+        const entrainmentFactor = Math.pow(P1 / 1000, 2);
+
+        // 3. Dilute the energy before adding it to the parcel
+        const netLayerEnergy = layerEnergy * entrainmentFactor;
+
+        vertMoSq = vertMoSq + (2 * netLayerEnergy);
+        if (vertMoSq < 0) vertMoSq = 0;
+
+        const currentVertMo = Math.sqrt(vertMoSq);
+        
+        // --- MODIFIED: Grid-Scale Proxy Factor ---
+        // Assume the updraft core covers about 6% of the HRRR grid box.
+        // This scales the 1D core speed down to a 3D grid average.
+        const arealFraction = 0.006; 
+        const displayVertMo = currentVertMo * arealFraction;
+        const omegaPaS = -(DensityLayer * 9.81 * displayVertMo);
+        const omegaµbS = omegaPaS * 10;
+        
+        DensityLayer = (P1*100)/(287.058*(tEnv1+273.15))
+        console.log(P1.toFixed(2),tEnv1.toFixed(2),DensityLayer);
+        console.log('CAPE at',P1,'mb = ',CAPELayerb);
+        console.log('CAPE at',P2,'mb = ',CAPELayer);
+        console.log('Vertical Velocity at', P2, 'mb =', displayVertMo.toFixed(2),'m/s');
+        console.log('Vertical Velocity at', P2, 'mb =', omegaPaS.toFixed(2),'Pa/s');
+        console.log('Vertical Velocity at', P2, 'mb =', omegaµbS.toFixed(2),'µb/s');
       }
     }
     CAPE = Math.max(0, Math.round(CAPE));
@@ -5418,7 +5486,7 @@ function drawOmegaPanel(data, cape) {
 
   // Only draw when model data has omega AND CAPE >= 500
   const hasOmeg = data.some(d => d.omeg != null);
-  if (!hasOmeg || cape < 500) return;
+  if (!hasOmeg || cape < -1) return;
 
   const skewTEl = document.getElementById('skewt');
   if (!skewTEl) return;
@@ -5443,6 +5511,7 @@ function drawOmegaPanel(data, cape) {
   function omegToX(o) {
     // Positive omega = descending = rightward (warm/red convention flipped):
     // BUFKIT plots +omega to LEFT (upward=negative=blue=cyan, downward=positive=red)
+    //console.log('OMEGA:',zeroX - Math.max(-absMax, Math.min(absMax, o)) * scale);
     return zeroX - Math.max(-absMax, Math.min(absMax, o)) * scale;
   }
 
@@ -5463,6 +5532,7 @@ function drawOmegaPanel(data, cape) {
     const avgO = (d0.omeg + d1.omeg) / 2;
     const color = avgO < 0 ? 'rgba(191,76,76,0.90)' : 'rgba(0,76,153,0.90)';
     segments += `<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${color}" stroke-width="1.5"/>`;
+    console.log('OMEGA: ',d0.omeg,'µb/s at',y0.toFixed(0),'mb');
   }
 
   // Zero-line + shaded fill (cyan left of zero, red right)
@@ -5759,6 +5829,11 @@ document.getElementById('reset-auto-sounding').addEventListener('click', () => {
   if (soundingModal) soundingModal.style.display = 'none';
   removeTVKeyboard(); // Clean up if open
   loadSounding();
+});
+
+// Remember the hour whenever the dropdown changes
+document.getElementById('custom-hour-select').addEventListener('change', (e) => {
+  lastSelectedModelHour = e.target.value;
 });
 
 // Helper: Safely clean up and remove the TV grid from the modal DOM
@@ -6607,13 +6682,20 @@ function populateModelHours() {
   if (!hourSelect) return;
   hourSelect.innerHTML = ''; 
   const now = new Date();
-  for (let i = -1; i <= 17; i++) {
+  for (let i = -2; i <= 16; i++) {
     const d = new Date(now.getTime() + (i * 60 * 60 * 1000));
     const h = String(d.getUTCHours()).padStart(2, '0');
     const opt = document.createElement('option');
     opt.value = h;
     opt.textContent = `${h}Z`;
     opt.style.background = '#111720';
+    // 1. If we have a saved selection, use it.
+    // 2. If no saved selection (first run), default to current hour (i === 0).
+    if (lastSelectedModelHour !== null) {
+        if (h === lastSelectedModelHour) opt.selected = true;
+    } else if (i === 0) {
+        opt.selected = true; 
+    }
     hourSelect.appendChild(opt);
   }
 }
