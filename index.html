@@ -782,10 +782,19 @@
     animation: scroll-left 120s linear infinite;
     will-change: transform; /* promote to own compositor layer — reduces CPU repaints on TV GPUs */
   }
+
+  /* ######## Original @Keyframes scroll-left block ####################*/
+  /*
   @keyframes scroll-left {
     from { transform: translateX(100vw); }
     to   { transform: translateX(-100%); }
   }
+  */
+  @keyframes scroll-left {
+    from { transform: translate3d(100vw, 0, 0); }
+    to   { transform: translate3d(-100%, 0, 0); }
+  }
+
   .tick-sep { color: var(--accent); margin: 0 12px; }
 
   .live-dot {
@@ -1416,6 +1425,14 @@
 </div>
 
 <script>
+// Disable console logging on the live TV (allows logging if testing locally)
+if (window.location.search.includes('device=tv')) {
+  console.log('Device is on a TV')
+  console.log = function() {};
+  console.warn = function() {};
+  console.error = function() {};
+}
+
 
 // Global states to maintain manual override persistence
 let manualStationOverride = null;
@@ -1655,7 +1672,8 @@ updateClock();
 // Page Visibility API: pause the 1-second clock tick when the TV screen turns off
 // or the browser tab is hidden. This prevents unnecessary CPU/timer work during idle periods
 // and helps reduce memory pressure over long uptime on low-resource TV browsers.
-document.addEventListener('visibilitychange', () => {
+// ############################# Original VisibilityChange Block ###############################
+/*document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     // Page is hidden — nothing to update visually, save CPU
   } else {
@@ -1663,7 +1681,7 @@ document.addEventListener('visibilitychange', () => {
     updateClock();
     updateDate();
   }
-});
+});*/
 
 // ---- CLOCK DATE ----
 function updateDate() {
@@ -1675,6 +1693,29 @@ function updateDate() {
 setInterval(updateDate, 60 * 1000);
 updateDate();
 
+let clockTimer = setInterval(updateClock, 1000);
+let dateTimer = setInterval(updateDate, 60 * 1000);
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    // Actually stop the execution
+    clearInterval(clockTimer);
+    clearInterval(dateTimer);
+    // Add your fetchAlerts and fetchForecast intervals here too
+  } else {
+    // Fire immediately, then resume schedule
+    updateClock();
+    updateDate();
+    clockTimer = setInterval(updateClock, 1000);
+    dateTimer = setInterval(updateDate, 60 * 1000);
+  }
+});
+
+
+
+
+// ########################## Original drawWindBarb Block ###########################
+/*
 function drawWindBarb(speedMph, dirDeg) {
   const g = document.getElementById('wind-barb');
   g.innerHTML = ''; // clear previous
@@ -1808,6 +1849,136 @@ function drawWindBarb(speedMph, dirDeg) {
   // so the shaft points FROM the station INTO the wind source.
   g.setAttribute('transform', `rotate(${dirDeg}, ${cx}, ${cy})`);
 }
+*/
+
+//TV Optomized WindBarb Block
+// Global tracker to prevent unnecessary SVG DOM teardown/recreation
+let lastBarbKt = null;
+
+function drawWindBarb(speedMph, dirDeg) {
+  const g = document.getElementById('wind-barb');
+  if (!g) return;
+
+  const cx = 36, cy = 36;
+  let kt = Math.round(speedMph * 0.868976); // convert mph → knots
+  if (kt >= 3 && kt < 5) kt = 5; // normalize light air
+
+  // Only tear down and rebuild SVG elements if wind speed (knots) actually changed
+  if (kt !== lastBarbKt) {
+    lastBarbKt = kt;
+    g.innerHTML = ''; // clear previous elements
+
+    const color = '#3aa0ff';
+    const strokeW = 3.0;
+
+    // Calm: two concentric circles, no shaft
+    if (kt < 3) {
+      const c1 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      c1.setAttribute('cx', cx); c1.setAttribute('cy', cy);
+      c1.setAttribute('r', 4); c1.setAttribute('fill', 'none');
+      c1.setAttribute('stroke', color); c1.setAttribute('stroke-width', strokeW);
+
+      const c2 = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      c2.setAttribute('cx', cx); c2.setAttribute('cy', cy);
+      c2.setAttribute('r', 7); c2.setAttribute('fill', 'none');
+      c2.setAttribute('stroke', color); c2.setAttribute('stroke-width', strokeW);
+
+      g.appendChild(c1); g.appendChild(c2);
+    } else {
+      // Shaft
+      const shaftLen = 30;
+      const tipY = cy - shaftLen;
+      const shaft = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      shaft.setAttribute('x1', cx); shaft.setAttribute('y1', cy);
+      shaft.setAttribute('x2', cx); shaft.setAttribute('y2', tipY);
+      shaft.setAttribute('stroke', color); shaft.setAttribute('stroke-width', strokeW);
+      shaft.setAttribute('stroke-linecap', 'round');
+      g.appendChild(shaft);
+
+      // Station dot
+      const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      dot.setAttribute('cx', cx); dot.setAttribute('cy', cy);
+      dot.setAttribute('r', 3.2); dot.setAttribute('fill', color);
+      g.appendChild(dot);
+
+      // Stem extending downwind from station dot
+      const tipSize = 1;
+      const stem = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      stem.setAttribute('x1', cx); stem.setAttribute('y1', cy + 2);
+      stem.setAttribute('x2', cx); stem.setAttribute('y2', cy + tipSize * 2.5);
+      stem.setAttribute('stroke', color); stem.setAttribute('stroke-width', strokeW);
+      g.appendChild(stem);
+
+      // Arrowhead pointing away from wind source
+      const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+      arrow.setAttribute('points', `
+        ${cx},${cy + tipSize * 36}
+        ${cx - tipSize*3},${cy + tipSize * 26}
+        ${cx},${cy + tipSize * 28}
+        ${cx + tipSize*3},${cy + tipSize * 26}
+      `);
+      arrow.setAttribute('fill', color);
+      g.appendChild(arrow);
+
+      // Decompose speed into barb components
+      let remaining = kt;
+      const pennants = Math.floor(remaining / 50); remaining -= pennants * 50;
+      const fullBarbs = Math.floor(remaining / 10); remaining -= fullBarbs * 10;
+      const halfBarbs = Math.floor(remaining / 5);
+
+      const barbLen = 12;
+      const barbAngle = 105;
+      const barbStep = 5;
+      const rad = barbAngle * Math.PI / 180;
+      let pos = tipY;
+
+      // Pennants (50kt)
+      for (let i = 0; i < pennants; i++) {
+        const y0 = pos;
+        const y1 = pos + barbStep;
+        const px0 = cx, py0 = y0;
+        const px1 = cx, py1 = y1;
+        const px2 = cx + barbLen, py2 = y0 + (barbStep / 2);
+        const tri = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        tri.setAttribute('points', `${px0},${py0} ${px1},${py1} ${px2},${py2}`);
+        tri.setAttribute('fill', color); tri.setAttribute('stroke', color);
+        tri.setAttribute('stroke-width', 0.5);
+        g.appendChild(tri);
+        pos += barbStep + 1;
+      }
+
+      // Full barbs (10kt)
+      for (let i = 0; i < fullBarbs; i++) {
+        const x2 = cx + barbLen * Math.sin(rad);
+        const y2 = pos + barbLen * Math.cos(rad);
+        const barb = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        barb.setAttribute('x1', cx); barb.setAttribute('y1', pos);
+        barb.setAttribute('x2', x2); barb.setAttribute('y2', y2);
+        barb.setAttribute('stroke', color); barb.setAttribute('stroke-width', strokeW);
+        barb.setAttribute('stroke-linecap', 'round');
+        g.appendChild(barb);
+        pos += barbStep;
+      }
+
+      // Half barb (5kt)
+      if (halfBarbs) {
+        if (pennants === 0 && fullBarbs === 0) pos += barbStep;
+        const x2 = cx + (barbLen / 2) * Math.sin(rad);
+        const y2 = pos + (barbLen / 2) * Math.cos(rad);
+        const barb = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        barb.setAttribute('x1', cx); barb.setAttribute('y1', pos);
+        barb.setAttribute('x2', x2); barb.setAttribute('y2', y2);
+        barb.setAttribute('stroke', color); barb.setAttribute('stroke-width', strokeW);
+        barb.setAttribute('stroke-linecap', 'round');
+        g.appendChild(barb);
+      }
+    }
+  }
+
+  // Always apply rotation (low-cost attribute update on existing nodes)
+  g.setAttribute('transform', `rotate(${dirDeg}, ${cx}, ${cy})`);
+}
+
 
 let WxTemp = null;
 let WxDew = null;
@@ -7316,7 +7487,23 @@ setInterval(() => {location.reload(true);}, 1 * 60 * 60 * 1000);
 // Auto-reload every 55 minutes to clear accumulated memory before the TV browser crashes.
 // Using location.reload() instead of href manipulation avoids growing the history stack
 // with cache-busting ?t= params (each navigation creates a new history entry on many TV browsers).
-setInterval(() => { location.reload(true); }, 55 * 60 * 1000);
+//setInterval(() => { location.reload(true); }, 55 * 60 * 1000);
+
+
+// 1. Recycle satellite/radar iframe every 45 minutes to flush WebGL memory
+setInterval(() => {
+  const satFrame = document.getElementById('sat-iframe');
+  if (satFrame) {
+    const currentSrc = satFrame.src.split('?')[0]; 
+    satFrame.src = currentSrc + '?refresh=' + new Date().getTime();
+  }
+}, 45 * 60 * 1000);
+
+// 2. Hard page refresh every 4 hours to clear overall browser heap leaks
+const FOUR_HOURS = 4 * 60 * 60 * 1000;
+setTimeout(() => {
+  window.location.reload(true); 
+}, FOUR_HOURS);
 
 </script>
 </body>
