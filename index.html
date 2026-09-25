@@ -784,16 +784,17 @@
   }
 
   /* ######## Original @Keyframes scroll-left block ####################*/
-  /*
   @keyframes scroll-left {
     from { transform: translateX(100vw); }
     to   { transform: translateX(-100%); }
   }
-  */
-  @keyframes scroll-left {
+  
+
+  /* ######## @Keyframes scroll-left Optimization attempt block ####################*/
+  /*@keyframes scroll-left {
     from { transform: translate3d(100vw, 0, 0); }
     to   { transform: translate3d(-100%, 0, 0); }
-  }
+  }*/
 
   .tick-sep { color: var(--accent); margin: 0 12px; }
 
@@ -7490,12 +7491,32 @@ setInterval(() => {location.reload(true);}, 1 * 60 * 60 * 1000);
 //setInterval(() => { location.reload(true); }, 55 * 60 * 1000);
 
 
+// ############ Wipes map settings from the URLS #################
 // 1. Recycle satellite/radar iframe every 45 minutes to flush WebGL memory
-setInterval(() => {
+/*setInterval(() => {
   const satFrame = document.getElementById('sat-iframe');
   if (satFrame) {
     const currentSrc = satFrame.src.split('?')[0]; 
     satFrame.src = currentSrc + '?refresh=' + new Date().getTime();
+  }
+}, 45 * 60 * 1000);*/
+
+// 1. Recycle satellite/radar iframes every 45 minutes to flush WebGL memory
+setInterval(() => {
+  // --- Satellite Refresh ---
+  const satFrame = document.getElementById('sat-iframe');
+  if (satFrame) {
+    const currentSrc = satFrame.src.split('?')[0]; 
+    satFrame.src = currentSrc + '?refresh=' + new Date().getTime();
+  }
+
+  // --- Radar Refresh ---
+  const radarFrame = document.getElementById('radar-iframe'); // Make sure this matches your HTML ID
+  if (radarFrame) {
+    // Safely append a cache-buster without deleting the '?settings=' parameter
+    const radarUrl = new URL(radarFrame.src);
+    radarUrl.searchParams.set('refresh', new Date().getTime());
+    radarFrame.src = radarUrl.toString();
   }
 }, 45 * 60 * 1000);
 
