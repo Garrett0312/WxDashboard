@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<!--script src="https://realearth.ssec.wisc.edu/js/RELoader.js"></script> -->
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1094,6 +1095,24 @@
       pointer-events: all;
     ">FRONTS</button>
   </div>
+  <!-- ############################################## NEW CONTENT 8.11.26 #####################################################-->
+  <button id="sat-source-toggle" onclick="toggleSatSource()" style="
+    position: absolute;
+    bottom: 10px;
+    right: 90px;
+    z-index: 20;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 12px;
+    letter-spacing: 1.5px;
+    color: var(--accent);
+    background: rgba(58,160,255,0.1);
+    border: 1px solid rgba(58,160,255,0.3);
+    border-radius: 3px;
+    padding: 2px 10px;
+    cursor: pointer;
+    display: none;
+  ">SSEC WX</button>
+  <!-- ############################################## NEW CONTENT 8.11.26 #####################################################-->
   <iframe id="sat-iframe"
     src="https://geosphere.ssec.wisc.edu/#playing:true;coordinate:-1362525,4001572;zoom:5.9;coverage:radc;num_frames:8;frame_rate:10;"
     title="Satellite"
@@ -1101,6 +1120,7 @@
     loading="lazy"
     sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
   ></iframe>
+  <iframe id="re-iframe" style="width:100%; height:100%; border:none; display:none;"></iframe>
   <!-- Alternative Satellite sources: 
    ORIGINAL: https://geosphere.ssec.wisc.edu/#playing:true;coordinate:-1362525,4001572;zoom:5.9;coverage:radc;num_frames:8;frame_rate:10;
    ALTS:
@@ -4147,7 +4167,7 @@ function plotSkewT(data) {
 
     const surfaceDewPoint = skewDew[0];
     const qt = getSaturationMixingRatio(surfaceDewPoint, parcelPath[0].pres);
-    console.log(surfaceDewPoint);
+    //console.log(surfaceDewPoint);
     let CAPELayer = 0;
     let CAPELayerb = 0;
     let vertMoSq = 0;
@@ -4217,12 +4237,12 @@ function plotSkewT(data) {
         const omegaµbS = omegaPaS * 10;
         
         DensityLayer = (P1*100)/(287.058*(tEnv1+273.15))
-        console.log(P1.toFixed(2),tEnv1.toFixed(2),DensityLayer);
-        console.log('CAPE at',P1,'mb = ',CAPELayerb);
-        console.log('CAPE at',P2,'mb = ',CAPELayer);
-        console.log('Vertical Velocity at', P2, 'mb =', displayVertMo.toFixed(2),'m/s');
-        console.log('Vertical Velocity at', P2, 'mb =', omegaPaS.toFixed(2),'Pa/s');
-        console.log('Vertical Velocity at', P2, 'mb =', omegaµbS.toFixed(2),'µb/s');
+        //console.log(P1.toFixed(2),tEnv1.toFixed(2),DensityLayer);
+        //console.log('CAPE at',P1,'mb = ',CAPELayerb);
+        //console.log('CAPE at',P2,'mb = ',CAPELayer);
+        //console.log('Vertical Velocity at', P2, 'mb =', displayVertMo.toFixed(2),'m/s');
+        //console.log('Vertical Velocity at', P2, 'mb =', omegaPaS.toFixed(2),'Pa/s');
+        //console.log('Vertical Velocity at', P2, 'mb =', omegaµbS.toFixed(2),'µb/s');
       }
     }
     CAPE = Math.max(0, Math.round(CAPE));
@@ -4330,7 +4350,7 @@ function plotSkewT(data) {
       }
       CAPE03 = Math.max(0, Math.round(CAPE03));    
     
-      console.log(`[Sounding] ${activeParcelType} CAPE: ${CAPE} J/kg | ↓LFC CAPE: ${CAPE_below_LFC} J/kg | CIN: ${CIN} J/kg | LFC: ${P_LFC ? Math.round(P_LFC) + ' hPa' : 'none'} | LCL: ${Math.round(parcelResult.P_LCL)} hPa | EL: ${P_EL ? Math.round(P_EL) + ' hPa' : 'none'}`);
+      //console.log(`[Sounding] ${activeParcelType} CAPE: ${CAPE} J/kg | ↓LFC CAPE: ${CAPE_below_LFC} J/kg | CIN: ${CIN} J/kg | LFC: ${P_LFC ? Math.round(P_LFC) + ' hPa' : 'none'} | LCL: ${Math.round(parcelResult.P_LCL)} hPa | EL: ${P_EL ? Math.round(P_EL) + ' hPa' : 'none'}`);
 
       const severeParams = computeSevereParams(data, parcelResult, CAPE, CIN);
       renderSevereOverlay(severeParams);
@@ -5532,7 +5552,7 @@ function drawOmegaPanel(data, cape) {
     const avgO = (d0.omeg + d1.omeg) / 2;
     const color = avgO < 0 ? 'rgba(191,76,76,0.90)' : 'rgba(0,76,153,0.90)';
     segments += `<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${color}" stroke-width="1.5"/>`;
-    console.log('OMEGA: ',d0.omeg,'µb/s at',y0.toFixed(0),'mb');
+    //console.log('OMEGA: ',d0.omeg,'µb/s at',y0.toFixed(0),'mb');
   }
 
   // Zero-line + shaded fill (cyan left of zero, red right)
@@ -5592,6 +5612,11 @@ function drawOmegaPanel(data, cape) {
 //   - Within each branch: try primary station first, fall back to secondary
 //     if the fetch fails or returns empty/error data.
 async function fetchSPCSoundingFor(station, overrideHour, overrideDate) {
+  // Guard check: do not fetch observed SPC soundings if model mode is active
+  if (isModelSoundingActive) {
+    return;
+  }
+
   const utcH = new Date().getUTCHours();
   
   // If overrideDate is provided, use it; otherwise, use current date
@@ -5615,7 +5640,7 @@ async function fetchSPCSoundingFor(station, overrideHour, overrideDate) {
   // Use the datePart and hour for the URL
   const url = `https://www.spc.noaa.gov/exper/soundings/${datePart}${hour}_OBS/${station}.txt`;
   
-  console.log('Fetching:', url);
+  //console.log('Fetching:', url);
   const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${station}`);
   const text = await res.text();
@@ -5743,11 +5768,9 @@ const soundingStationLabel = document.getElementById('sounding-station');
 // --- 1. Populate the Date Dropdown ---
 function initSoundingDateDropdown() {
   const dateSelect = document.getElementById('custom-date-select');
-
   if (isModelSoundingActive) {
     // --- MODE: RAP MODEL SOUNDING ---
     if (dateSelect) dateSelect.style.display = 'none'; // Hide Date
-    // ... rest of your code ...
   } else {
     // --- MODE: OBSERVED SOUNDING ---
     if (dateSelect) dateSelect.style.display = 'block';
@@ -5811,7 +5834,7 @@ document.getElementById('submit-custom-sounding').addEventListener('click', () =
 
     // Construct the targeted SPC URL string format (YYMMDDHH)
     const targetTimestamp = `${yearShort}${month}${day}${hour}`;
-    console.log(`Loading custom archive dataset for target timestamp: ${targetTimestamp}`);
+    //console.log(`Loading custom archive dataset for target timestamp: ${targetTimestamp}`);
 
     // Now feed your target timestamp and station parameters into your primary text fetcher function
     // Example: loadSoundingData(station, targetTimestamp);
@@ -6006,7 +6029,6 @@ soundingStationLabel.addEventListener('click', (e) => {
   const dateContainer = document.getElementById('custom-date-select');
   const hourContainer = document.getElementById('custom-hour-select');
 
-  console.log("Current Sounding Mode (isModelSoundingActive):", isModelSoundingActive);
 
   if (isModelSoundingActive) {
     // --- MODE: RAP MODEL SOUNDING ---
@@ -6112,7 +6134,10 @@ function getParcelPath(data) {
 //const RADAR_URL = 'https://radar.weather.gov/?settings=v1_eyJhZ2VuZGEiOnsiaWQiOiJ3ZWF0aGVyIiwiY2VudGVyIjpbLTkyLjk4LDQxLjU3M10sImxvY2F0aW9uIjpudWxsLCJ6b29tIjo3LCJsYXllciI6ImJyZWZfcWNkIn0sImFuaW1hdGluZyI6dHJ1ZSwiYmFzZSI6InN0YW5kYXJkIiwiYXJ0Y2MiOmZhbHNlLCJjb3VudHkiOmZhbHNlLCJjd2EiOmZhbHNlLCJyZmMiOmZhbHNlLCJzdGF0ZSI6ZmFsc2UsIm1lbnUiOnRydWUsInNob3J0RnVzZWRPbmx5IjpmYWxzZSwib3BhY2l0eSI6eyJhbGVydHMiOjAuOCwibG9jYWwiOjAuNiwibG9jYWxTdGF0aW9ucyI6MC44LCJuYXRpb25hbCI6MC42fX0%3D';
 // url:   'https://www.spc.noaa.gov/products/outlook/day1otlk.html',
 // url: 'https://www.spc.noaa.gov/products/activity_loop.gif',
-
+// Primary Radar URL: 'https://radar.weather.gov/?settings=v1_eyJhZ2VuZGEiOnsiaWQiOiJuYXRpb25hbCIsImNlbnRlciI6Wy05My42Nyw0Mi4wOF0sImxvY2F0aW9uIjpudWxsLCJ6b29tIjo3LjgwMjEzMDQ4MDMwMzU5MjUsImxheWVyIjoiYnJlZl9xY2QifSwiYW5pbWF0aW5nIjp0cnVlLCJiYXNlIjoiZGFya2NhbnZhcyIsImFydGNjIjpmYWxzZSwiY291bnR5IjpmYWxzZSwiY3dhIjpmYWxzZSwicmZjIjpmYWxzZSwic3RhdGUiOnRydWUsIm1lbnUiOnRydWUsInNob3J0RnVzZWRPbmx5IjpmYWxzZSwib3BhY2l0eSI6eyJhbGVydHMiOjAuNjEsImxvY2FsIjowLjYsImxvY2FsU3RhdGlvbnMiOjAuOCwibmF0aW9uYWwiOjF9fQ%3D%3D',
+// Radar - Wx4Location: 'https://radar.weather.gov/?settings=v1_eyJhZ2VuZGEiOnsiaWQiOiJ3ZWF0aGVyIiwiY2VudGVyIjpbLTkxLjgyNSw0Mi4wNDddLCJsb2NhdGlvbiI6Wy05MS42NTgsNDEuOTczXSwiem9vbSI6Ny42NjY2NjY2NjY2NjY2NjcsImxheWVyIjoiYnJlZl9xY2QifSwiYW5pbWF0aW5nIjp0cnVlLCJiYXNlIjoiZGFya2NhbnZhcyIsImFydGNjIjpmYWxzZSwiY291bnR5IjpmYWxzZSwiY3dhIjpmYWxzZSwicmZjIjpmYWxzZSwic3RhdGUiOnRydWUsIm1lbnUiOmZhbHNlLCJzaG9ydEZ1c2VkT25seSI6ZmFsc2UsIm9wYWNpdHkiOnsiYWxlcnRzIjowLjgsImxvY2FsIjowLjYsImxvY2FsU3RhdGlvbnMiOjAuOCwibmF0aW9uYWwiOjF9fQ%3D%3D'
+// Radar - National Basic: 'https://radar.weather.gov/?settings=v1_eyJhZ2VuZGEiOnsiaWQiOiJ3ZWF0aGVyIiwiY2VudGVyIjpbLTkzLjI0Nyw0MS45OThdLCJsb2NhdGlvbiI6Wy05MS43MTUsNDEuOTc3XSwiem9vbSI6Ny42MzA4NjQwMTgyMjgzMzcsImxheWVyIjoiYnJlZl9xY2QifSwiYW5pbWF0aW5nIjp0cnVlLCJiYXNlIjoiZGFya2NhbnZhcyIsImFydGNjIjpmYWxzZSwiY291bnR5IjpmYWxzZSwiY3dhIjpmYWxzZSwicmZjIjpmYWxzZSwic3RhdGUiOnRydWUsIm1lbnUiOmZhbHNlLCJzaG9ydEZ1c2VkT25seSI6ZmFsc2UsIm9wYWNpdHkiOnsiYWxlcnRzIjowLjgsImxvY2FsIjowLjYsImxvY2FsU3RhdGlvbnMiOjAuOCwibmF0aW9uYWwiOjF9fQ%3D%3D'
+// Radar - Nat. Radar SBW Only: 'https://radar.weather.gov/?settings=v1_eyJhZ2VuZGEiOnsiaWQiOiJuYXRpb25hbCIsImNlbnRlciI6Wy05My40ODIsNDIuMDcxXSwibG9jYXRpb24iOlstOTMuNSw0Mi4wNzVdLCJ6b29tIjo4LCJsYXllciI6ImJyZWZfcWNkIn0sImFuaW1hdGluZyI6dHJ1ZSwiYmFzZSI6ImRhcmtjYW52YXMiLCJhcnRjYyI6ZmFsc2UsImNvdW50eSI6ZmFsc2UsImN3YSI6ZmFsc2UsInJmYyI6ZmFsc2UsInN0YXRlIjp0cnVlLCJtZW51IjpmYWxzZSwic2hvcnRGdXNlZE9ubHkiOnRydWUsIm9wYWNpdHkiOnsiYWxlcnRzIjowLjgsImxvY2FsIjowLjYsImxvY2FsU3RhdGlvbnMiOjAuODUsIm5hdGlvbmFsIjoxfX0%3D'
 
 // Primary SAT SOURCE: https://geosphere.ssec.wisc.edu/#playing:true;coordinate:-1362525,4001572;zoom:5.9;coverage:radc;num_frames:8;frame_rate:10;
 //other SAT SOURCES: 
@@ -6124,7 +6149,7 @@ const SAT_SOURCES = {
     label: 'SATELLITE — N IOWA TRUE COLOR',
   },
   radar: {
-    url:   'https://radar.weather.gov/?settings=v1_eyJhZ2VuZGEiOnsiaWQiOiJuYXRpb25hbCIsImNlbnRlciI6Wy05My42Nyw0Mi4wOF0sImxvY2F0aW9uIjpudWxsLCJ6b29tIjo3LjgwMjEzMDQ4MDMwMzU5MjUsImxheWVyIjoiYnJlZl9xY2QifSwiYW5pbWF0aW5nIjp0cnVlLCJiYXNlIjoiZGFya2NhbnZhcyIsImFydGNjIjpmYWxzZSwiY291bnR5IjpmYWxzZSwiY3dhIjpmYWxzZSwicmZjIjpmYWxzZSwic3RhdGUiOnRydWUsIm1lbnUiOnRydWUsInNob3J0RnVzZWRPbmx5IjpmYWxzZSwib3BhY2l0eSI6eyJhbGVydHMiOjAuNjEsImxvY2FsIjowLjYsImxvY2FsU3RhdGlvbnMiOjAuOCwibmF0aW9uYWwiOjF9fQ%3D%3D',
+    url: 'https://radar.weather.gov/?settings=v1_eyJhZ2VuZGEiOnsiaWQiOiJuYXRpb25hbCIsImNlbnRlciI6Wy05My40NjMsNDIuMDcyXSwibG9jYXRpb24iOlstOTMuNSw0Mi4wNzVdLCJ6b29tIjo3LjY2NjY2NjY2NjY2NjY2NywibGF5ZXIiOiJicmVmX3FjZCJ9LCJhbmltYXRpbmciOnRydWUsImJhc2UiOiJkYXJrY2FudmFzIiwiYXJ0Y2MiOmZhbHNlLCJjb3VudHkiOmZhbHNlLCJjd2EiOmZhbHNlLCJyZmMiOmZhbHNlLCJzdGF0ZSI6dHJ1ZSwibWVudSI6ZmFsc2UsInNob3J0RnVzZWRPbmx5Ijp0cnVlLCJvcGFjaXR5Ijp7ImFsZXJ0cyI6MC44LCJsb2NhbCI6MC42LCJsb2NhbFN0YXRpb25zIjowLjg1LCJuYXRpb25hbCI6MX19',
     label: 'NWS — COMPOSITE REFLECTIVITY',
   },
   spc: {
@@ -6140,6 +6165,100 @@ const SAT_SOURCES = {
     label: 'WPC — SURFACE FRONTS',
   }
 };
+
+// ############################################## NEW CONTENT 8.11.26 #####################################################-->
+// ---- SATELLITE SOURCE VARIANT (CSPP vs SSEC Wx) ----
+/*
+const SAT_ALT_SOURCES = {
+  cspp: 'https://geosphere.ssec.wisc.edu/#playing:true;coordinate:-1362525,4001572;zoom:5.9;coverage:radc;num_frames:8;frame_rate:10;',
+  ssec:  'https://realearth.ssec.wisc.edu/?products=G19-ABI-CONUS-geo-color.-100,G19-ABI-CONUS-true-color,SSEC-METAR.-100,Fronts.-100,MERGEDREF,NWS-Alerts-Other.-100,NWS-Alerts-Winter-Weather,NWS-Alerts-Non-Convective,NWS-Alerts-Convective,GOESEastGLMFEDRadC.-100,glmgroupdensity.-100,glmgrouppoints.-100,G19-ABI-MESO1-true-color.-100,G19-ABI-MESO2-true-color.-100&center=41.972942,-91.658210&zoom=7&basemap=filled&labels=line&view=mbmercator&collection=RealEarth&timespan=-1h,0s&timestep=5m&animationspeed=82'
+};
+let satSourceVariant = localStorage.getItem('satSourceVariant') || 'cspp';
+SAT_SOURCES.satellite.url = SAT_ALT_SOURCES[satSourceVariant]; // make sure "satellite" entry starts on the saved variant
+
+function toggleSatSource() {
+  satSourceVariant = (satSourceVariant === 'cspp') ? 'ssec' : 'cspp';
+  localStorage.setItem('satSourceVariant', satSourceVariant);
+  SAT_SOURCES.satellite.url = SAT_ALT_SOURCES[satSourceVariant];
+
+  if (satMode === 'satellite') {
+    document.getElementById('sat-iframe').src = SAT_ALT_SOURCES[satSourceVariant];
+  }
+  document.getElementById('sat-source-toggle').textContent =
+    (satSourceVariant === 'cspp') ? 'SSEC' : 'CSPP';
+}
+// ############################################## NEW CONTENT 8.11.26 #####################################################-->
+*/
+
+const SAT_ALT_SOURCES = {
+  cspp: 'https://geosphere.ssec.wisc.edu/#playing:true;coordinate:-1362525,4001572;zoom:5.9;coverage:radc;num_frames:8;frame_rate:10;'
+};
+let satSourceVariant = localStorage.getItem('satSourceVariant') || 'cspp';
+
+let reController = null; // holds the RealEarth widget instance once created
+
+/*
+function showRealEarthWidget() {
+  document.getElementById('sat-iframe').style.display = 'none';
+  document.getElementById('re_canvas').style.display   = 'block';
+
+  if (!reController) {
+    reController = new ssec.realearth.ViewController('re_canvas', {
+      ui: false,
+      selector: false,
+      products: 'G19-ABI-CONUS-geo-color.-100,G19-ABI-CONUS-true-color,SSEC-METAR.-100,Fronts.-100,MERGEDREF,NWS-Alerts-Other.-100,NWS-Alerts-Winter-Weather,NWS-Alerts-Non-Convective,NWS-Alerts-Convective,GOESEastGLMFEDRadC.-100,glmgroupdensity.-100,glmgrouppoints.-100,G19-ABI-MESO1-true-color.-100,G19-ABI-MESO2-true-color.-100',
+      bounds: '40.0856,-96.2175,43.8060,-87.0989'
+    });
+  }
+}*/
+
+function showRealEarthWidget() {
+  document.getElementById('sat-iframe').style.display = 'none';
+  const reIframe = document.getElementById('re-iframe');
+  reIframe.style.display = 'block';
+
+  if (!reIframe.dataset.loaded) {
+    reController = new ssec.realearth.ViewController('re-iframe', {
+      ui: false,
+      selector: false,
+      products: 'G19-ABI-CONUS-geo-color.-100,G19-ABI-CONUS-true-color,SSEC-METAR.-100,Fronts.-100,MERGEDREF,NWS-Alerts-Other.-100,NWS-Alerts-Winter-Weather,NWS-Alerts-Non-Convective,NWS-Alerts-Convective,GOESEastGLMFEDRadC.-100,glmgroupdensity.-100,glmgrouppoints.-100,G19-ABI-MESO1-true-color.-100,G19-ABI-MESO2-true-color.-100',
+      bounds: '40.0856,-96.2175,43.8060,-87.0989'
+    });
+    reIframe.dataset.loaded = 'true';
+  }
+}
+
+
+function showCsppIframe() {
+  const reIframe = document.getElementById('re-iframe');
+  if (reIframe) reIframe.style.display = 'none';
+  document.getElementById('sat-iframe').style.display = 'block';
+  document.getElementById('sat-iframe').src = SAT_ALT_SOURCES.cspp;
+}
+
+// Initialize on load in whichever mode was saved
+if (satSourceVariant === 'ssec') {
+  SAT_SOURCES.satellite.url = null; // handled by widget instead of iframe src
+} else {
+  SAT_SOURCES.satellite.url = SAT_ALT_SOURCES.cspp;
+}
+
+function toggleSatSource() {
+  satSourceVariant = (satSourceVariant === 'cspp') ? 'ssec' : 'cspp';
+  localStorage.setItem('satSourceVariant', satSourceVariant);
+
+  if (satMode === 'satellite') {
+    if (satSourceVariant === 'ssec') {
+      showRealEarthWidget();
+    } else {
+      showCsppIframe();
+    }
+  }
+
+  document.getElementById('sat-source-toggle').textContent =
+    (satSourceVariant === 'cspp') ? 'SSEC' : 'CSPP';
+}
+
 
 let satMode = localStorage.getItem('satMode') || 'satellite';
 const SOURCE_ORDER = ['satellite', 'radar', 'spc', 'meso', 'fronts'];
@@ -6174,6 +6293,18 @@ function cycleSource(target) {
   document.getElementById('sat-iframe').src             = src.url;
   document.getElementById('sat-label-text').textContent = src.label;
   document.getElementById('satellite').classList.toggle('radar-mode', satMode === 'radar');
+
+  //################################################ --- NEW CONTENT 8.11.26 --- ########################################################
+  document.getElementById('sat-source-toggle').style.display = (satMode === 'satellite') ? 'block' : 'none';
+
+  if (satMode !== 'satellite') {
+    const canvas = document.getElementById('re_canvas');
+    if (canvas) canvas.style.display = 'none';
+    document.getElementById('sat-iframe').style.display = 'block';
+  } else if (satSourceVariant === 'ssec') {
+    showRealEarthWidget();
+  }
+  //################################################ --- NEW CONTENT 8.11.26 --- ########################################################
 
   // The two buttons always show the two sources that are NOT active
   const others = SOURCE_ORDER.filter(s => s !== satMode);
@@ -6654,27 +6785,6 @@ async function getMultiDayRisks() {
 }
 
 
-function loadObsSounding() {
-  isModelSoundingActive = false;
-  document.querySelector('#sounding .section-title').textContent = 'Upper Air Sounding';
-  document.querySelector('#sounding .section-title').onclick = () => loadModelSounding();
-  const modelBtn = document.getElementById('model-toggle-btn');
-  if (modelBtn) modelBtn.style.display = 'none';
-  loadSounding();
-}
-
-
-let currentModel = 'RAP';
-
-function toggleModel() {
-  currentModel = currentModel === 'RAP' ? 'HRRR' : 'RAP';
-  const btn = document.getElementById('model-toggle-btn');
-  if (btn) {
-    btn.textContent = currentModel;
-    btn.style.color = currentModel === 'HRRR' ? '#ffaa00' : '#c084fc';
-  }
-  if (isModelSoundingActive) loadModelSounding();
-}
 
 // A. POPULATE MODEL HOURS (Dynamic)
 function populateModelHours() {
@@ -6717,6 +6827,30 @@ function populateObservedHours() {
 }
 
 
+
+let currentModel = 'RAP';
+
+function toggleModel() {
+  currentModel = currentModel === 'RAP' ? 'HRRR' : 'RAP';
+  const btn = document.getElementById('model-toggle-btn');
+  if (btn) {
+    btn.textContent = currentModel;
+    btn.style.color = currentModel === 'HRRR' ? '#ffaa00' : '#c084fc';
+  }
+  if (isModelSoundingActive) loadModelSounding();
+}
+
+function loadObsSounding() {
+  isModelSoundingActive = false;
+  document.querySelector('#sounding .section-title').textContent = 'Upper Air Sounding';
+  document.querySelector('#sounding .section-title').onclick = () => loadModelSounding();
+  const modelBtn = document.getElementById('model-toggle-btn');
+  if (modelBtn) modelBtn.style.display = 'none';
+  loadSounding();
+}
+
+
+
 // ---- RAP MODEL SOUNDING (BUFKIT) — loads on click of "Upper Air Sounding" title ----
 async function loadModelSounding(icao = null, targetHour = null) {
   if (icao) {
@@ -6733,10 +6867,17 @@ async function loadModelSounding(icao = null, targetHour = null) {
   const model = currentModel;
 
   // --- FETCHING LOGIC ---
+  const WORKER_URL = "https://bufkit-proxy.gpheyd.workers.dev/";
+
   if (targetHour) {
     // MANUAL PATH: Skip the loop, go straight to the file for this hour
-    const url = `https://corsproxy.io/?url=https://metfs1.agron.iastate.edu/data/bufkit/${model.toLowerCase()}/${model.toLowerCase()}_${modelStationICAO}.buf`;
-    console.log('BUFKIT URL (Manual):', url);
+    //const url = `https://corsproxy.io/?url=https://metfs1.agron.iastate.edu/data/bufkit/${model.toLowerCase()}/${model.toLowerCase()}_${modelStationICAO}.buf`;
+    //const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://metfs1.agron.iastate.edu/data/bufkit/${model.toLowerCase()}/${model.toLowerCase()}_${modelStationICAO}.buf`)}`;
+
+    const targetUrl = `https://metfs1.agron.iastate.edu/data/bufkit/${model.toLowerCase()}/${model.toLowerCase()}_${modelStationICAO}.buf`;
+    const url = `${WORKER_URL}?url=${encodeURIComponent(targetUrl)}`;
+
+    //console.log('BUFKIT URL (Manual):', url);
     try {
       const res = await fetch(url);
       if (res.ok) {
@@ -6744,14 +6885,37 @@ async function loadModelSounding(icao = null, targetHour = null) {
         if (t && t.length >= 200) text = t;
       }
     } catch (e) { console.warn("Manual fetch failed", e); }
+  
+  
+  /*} else {
+    // AUTO PATH: single fetch — the BUFKIT file itself always holds the
+    // current model cycle, there's no per-hour filename to loop over
+    const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://metfs1.agron.iastate.edu/data/bufkit/${model.toLowerCase()}/${model.toLowerCase()}_${modelStationICAO}.buf`)}`;
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        const t = await res.text();
+        if (t && t.length >= 200) {
+          text = t;
+          usedHour = String(new Date().getUTCHours()).padStart(2, '0');
+        }
+      }
+    } catch (e) { console.warn("Auto fetch failed", e); }
+  }*/
+  
+    // hour looping file search method
   } else {
     // AUTO PATH: Use your existing loop to find the valid file
     const utcH = new Date().getUTCHours();
     const hoursToTry = Array.from({ length: 6 }, (_, i) => (utcH - 1 - i + 24) % 24);
-    
     for (const h of hoursToTry) {
       const hStr = String(h).padStart(2, '0');
-      const url = `https://corsproxy.io/?url=https://metfs1.agron.iastate.edu/data/bufkit/${model.toLowerCase()}/${model.toLowerCase()}_${modelStationICAO}.buf`;
+      //const url = `https://corsproxy.io/?url=https://metfs1.agron.iastate.edu/data/bufkit/${model.toLowerCase()}/${model.toLowerCase()}_${modelStationICAO}.buf`;
+      //const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://metfs1.agron.iastate.edu/data/bufkit/${model.toLowerCase()}/${model.toLowerCase()}_${modelStationICAO}.buf`)}`;
+
+      const targetUrl = `https://metfs1.agron.iastate.edu/data/bufkit/${model.toLowerCase()}/${model.toLowerCase()}_${modelStationICAO}.buf`;
+      const url = `${WORKER_URL}?url=${encodeURIComponent(targetUrl)}`;
+
       try {
         const res = await fetch(url);
         if (!res.ok) continue;
@@ -6764,9 +6928,19 @@ async function loadModelSounding(icao = null, targetHour = null) {
     }
   }
 
+  //if (!text) {
+  //  label.textContent = `${model} unavailable`;
+  //  label.style.color = '#ff6060';
+  //  return;
+  //}
+
   if (!text) {
     label.textContent = `${model} unavailable`;
     label.style.color = '#ff6060';
+    document.querySelector('#sounding .section-title').textContent = `${model} Sounding`;
+    document.querySelector('#sounding .section-title').onclick = () => loadObsSounding();
+    const modelBtnFail = document.getElementById('model-toggle-btn');
+    if (modelBtnFail) modelBtnFail.style.display = 'block';
     return;
   }
 
@@ -6774,9 +6948,19 @@ async function loadModelSounding(icao = null, targetHour = null) {
   // Pass the targetHour to the parser so it knows which block to pick
   const data = parseBUFKIT(text, targetHour); 
 
+  //if (!data || data.length < 5) {
+  //  label.textContent = `${model} parse failed`;
+  //  label.style.color = '#ff6060';
+  //  return;
+  //}
+
   if (!data || data.length < 5) {
     label.textContent = `${model} parse failed`;
     label.style.color = '#ff6060';
+    document.querySelector('#sounding .section-title').textContent = `${model} Sounding`;
+    document.querySelector('#sounding .section-title').onclick = () => loadObsSounding();
+    const modelBtnFail = document.getElementById('model-toggle-btn');
+    if (modelBtnFail) modelBtnFail.style.display = 'block';
     return;
   }
 
@@ -6872,8 +7056,8 @@ function parseBUFKIT(text, targetHour) {
   const startIdx = best.lineIdx;
   const nextBlock = blocks.find(b => b.lineIdx > startIdx);
   const endIdx = nextBlock ? nextBlock.lineIdx : lines.length;
-  console.log('Bufkit index Start:',startIdx);
-  console.log('Bufkit index End:',endIdx);
+  //console.log('Bufkit index Start:',startIdx);
+  //console.log('Bufkit index End:',endIdx);
 
   // Find the SNPARM line within this block to get column order
   let snparmCols = null;
@@ -6937,7 +7121,7 @@ function parseBUFKIT(text, targetHour) {
       i += 1;
     }
   }
-  console.log(data[0]);
+  //console.log(data[0]);
   return data;
 }
 
@@ -7095,6 +7279,10 @@ fetchCLI();
 fetchWxStories();
 loadSounding();
 if (satMode !== 'satellite') cycleSource(satMode);
+
+//################################################# --- NEW CONTENT 8.11.26 --- #########################################################
+document.getElementById('sat-source-toggle').style.display = (satMode === 'satellite') ? 'block' : 'none';
+//################################################# --- NEW CONTENT 8.11.26 --- #########################################################
 
 if (navigator.geolocation) {
   navigator.geolocation.getCurrentPosition(
