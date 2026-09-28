@@ -7491,33 +7491,25 @@ setInterval(() => {location.reload(true);}, 1 * 60 * 60 * 1000);
 //setInterval(() => { location.reload(true); }, 55 * 60 * 1000);
 
 
-// ############ Wipes map settings from the URLS #################
-// 1. Recycle satellite/radar iframe every 45 minutes to flush WebGL memory
-/*setInterval(() => {
-  const satFrame = document.getElementById('sat-iframe');
-  if (satFrame) {
-    const currentSrc = satFrame.src.split('?')[0]; 
-    satFrame.src = currentSrc + '?refresh=' + new Date().getTime();
-  }
-}, 45 * 60 * 1000);*/
-
-// 1. Recycle satellite/radar iframes every 45 minutes to flush WebGL memory
+// 1. Recycle the map iframe every 45 minutes to flush WebGL memory.
+// Reloads the EXACT URL for the current mode from SAT_SOURCES, so the radar
+// ?settings=... and the satellite #playing:...;coordinate:... hash are never altered.
 setInterval(() => {
-  // --- Satellite Refresh ---
   const satFrame = document.getElementById('sat-iframe');
-  if (satFrame) {
-    const currentSrc = satFrame.src.split('?')[0]; 
-    satFrame.src = currentSrc + '?refresh=' + new Date().getTime();
-  }
+  if (!satFrame) return;
 
-  // --- Radar Refresh ---
-  const radarFrame = document.getElementById('radar-iframe'); // Make sure this matches your HTML ID
-  if (radarFrame) {
-    // Safely append a cache-buster without deleting the '?settings=' parameter
-    const radarUrl = new URL(radarFrame.src);
-    radarUrl.searchParams.set('refresh', new Date().getTime());
-    radarFrame.src = radarUrl.toString();
-  }
+  // Only recycle if the iframe is actually the visible one for the current mode.
+  // (SPC uses a Leaflet map; SSEC variant uses the RealEarth widget.)
+  if (satMode === 'spc') return;
+  if (satMode === 'satellite' && satSourceVariant === 'ssec') return;
+  if (satFrame.style.display === 'none') return;
+
+  const url = SAT_SOURCES[satMode] && SAT_SOURCES[satMode].url;
+  if (!url) return;
+
+  // Blank first to release the old page's memory, then load the untouched URL.
+  satFrame.src = 'about:blank';
+  setTimeout(() => { satFrame.src = url; }, 1500);
 }, 45 * 60 * 1000);
 
 // 2. Hard page refresh every 4 hours to clear overall browser heap leaks
@@ -7525,6 +7517,8 @@ const FOUR_HOURS = 4 * 60 * 60 * 1000;
 setTimeout(() => {
   window.location.reload(true); 
 }, FOUR_HOURS);
+
+
 
 </script>
 </body>
