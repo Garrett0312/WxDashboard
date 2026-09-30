@@ -7491,15 +7491,20 @@ setInterval(() => {location.reload(true);}, 1 * 60 * 60 * 1000);
 //setInterval(() => { location.reload(true); }, 55 * 60 * 1000);
 
 
-// 1. Recycle the map iframe every 45 minutes to flush WebGL memory.
-// Reloads the EXACT URL for the current mode from SAT_SOURCES, so the radar
-// ?settings=... and the satellite #playing:...;coordinate:... hash are never altered.
-setInterval(() => {
+// ================= MEMORY / CRASH PROTECTION =================
+// The NWS radar iframe (WebGL + animation) leaks memory the longer it runs, and a
+// TV browser eventually kills the whole tab. Fix = recycle often, before it gets there.
+// satMode is saved in localStorage, so after a reload the dashboard comes back
+// on the same panel (radar stays radar).
+
+const RADAR_RECYCLE_MIN = 15;   // recycle radar/map iframe this often (minutes)
+const OTHER_RECYCLE_MIN = 45;   // recycle satellite/meso/fronts iframe (minutes)
+const PAGE_RELOAD_MIN   = 55;   // full page reload (minutes) - same as your old script
+
+// 1. Recycle the map iframe. Loads the EXACT url for the current mode, untouched.
+function recycleSatFrame() {
   const satFrame = document.getElementById('sat-iframe');
   if (!satFrame) return;
-
-  // Only recycle if the iframe is actually the visible one for the current mode.
-  // (SPC uses a Leaflet map; SSEC variant uses the RealEarth widget.)
   if (satMode === 'spc') return;
   if (satMode === 'satellite' && satSourceVariant === 'ssec') return;
   if (satFrame.style.display === 'none') return;
@@ -7507,17 +7512,27 @@ setInterval(() => {
   const url = SAT_SOURCES[satMode] && SAT_SOURCES[satMode].url;
   if (!url) return;
 
-  // Blank first to release the old page's memory, then load the untouched URL.
-  satFrame.src = 'about:blank';
+  satFrame.src = 'about:blank';               // free the old page's memory first
   setTimeout(() => { satFrame.src = url; }, 1500);
-}, 45 * 60 * 1000);
+}
+setInterval(() => { if (satMode === 'radar') recycleSatFrame(); }, RADAR_RECYCLE_MIN * 60 * 1000);
+setInterval(() => { if (satMode !== 'radar') recycleSatFrame(); }, OTHER_RECYCLE_MIN * 60 * 1000);
 
-// 2. Hard page refresh every 4 hours to clear overall browser heap leaks
-const FOUR_HOURS = 4 * 60 * 60 * 1000;
-setTimeout(() => {
-  window.location.reload(true); 
-}, FOUR_HOURS);
+// 2. Full page reload. Checks the network first so a Wi-Fi blip can't leave the TV
+//    stuck on a "page not found" screen - it just retries every minute until it works.
+function safeReload() {
+  fetch(location.href.split('#')[0], { method: 'HEAD', cache: 'no-store' })
+    .then(r => { if (r.ok) location.reload(); else setTimeout(safeReload, 60 * 1000); })
+    .catch(() => setTimeout(safeReload, 60 * 1000));
+}
+setInterval(safeReload, PAGE_RELOAD_MIN * 60 * 1000);
 
+// 3. Backup: if the timers above were throttled/frozen (TV sleep, background tab)
+//    and the page has been alive far too long, force a reload when we wake up.
+const PAGE_START = Date.now();
+setInterval(() => {
+  if (Date.now() - PAGE_START > (PAGE_RELOAD_MIN + 10) * 60 * 1000) safeReload();
+}, 60 * 1000);
 
 
 </script>
