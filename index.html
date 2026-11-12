@@ -3,14 +3,22 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+  //const IS_TV = window.location.search.includes('device=tv');
+  const IS_TV = window.location.search.includes('device=tv') || localStorage.getItem('tv') === '1';
+  if (IS_TV) document.documentElement.classList.add('tv');
+</script>
+
 <title>Weather Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <link rel="icon" type="image/svg+xml" href="tstm_symbol.png">
-<script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+
+<!--script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script-->
+<script src="https://cdn.plot.ly/plotly-cartesian-2.30.0.min.js"></script>
+
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
-<!--script src="https://realearth.ssec.wisc.edu/js/RELoader.js"></script> -->
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -187,7 +195,8 @@
   #satellite .sat-label {
     position: absolute;
     /*top: 1px; left: 380px;*/
-    top: 10px; left: 365px;
+    /*top: 10px; left: 365px;*/
+    top: 10px; left: 50%; transform: translateX(-50%); white-space: nowrap;
     font-family: 'Bebas Neue', sans-serif;
     font-size: 15px;
     letter-spacing: 2px;
@@ -542,22 +551,6 @@
   #stories-content {
     transition: opacity 0.6s ease;
   }
-  /*
-  #alert-content {
-    padding: 0;
-    transition: opacity 0.6s ease;
-    /*overflow: hidden;
-    position: relative;*
-    overflow: scroll;
-    position: relative;
-    scrollbar-width: none; /* hides the scrollbar in Firefox *
-  }
-  #alert-content-inner {
-    padding: 8px 10px 4px;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-  }*/
   
   #alert-content {
     display: flex;
@@ -981,7 +974,13 @@
     display: none !important;
   }
 
-</style>
+  html.tv *, html.tv *::before, html.tv *::after {
+    /*transition: none !important;*/
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  html.tv .live-dot { animation: none !important; will-change: auto; }
+
 </style>
 </head>
 <body>
@@ -1105,37 +1104,13 @@
       pointer-events: all;
     ">FRONTS</button>
   </div>
-  <!-- ############################################## NEW CONTENT 8.11.26 #####################################################-->
-  <button id="sat-source-toggle" onclick="toggleSatSource()" style="
-    position: absolute;
-    bottom: 10px;
-    right: 90px;
-    z-index: 20;
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 12px;
-    letter-spacing: 1.5px;
-    color: var(--accent);
-    background: rgba(58,160,255,0.1);
-    border: 1px solid rgba(58,160,255,0.3);
-    border-radius: 3px;
-    padding: 2px 10px;
-    cursor: pointer;
-    display: none;
-  ">SSEC WX</button>
-  <!-- ############################################## NEW CONTENT 8.11.26 #####################################################-->
   <iframe id="sat-iframe"
     src="https://geosphere.ssec.wisc.edu/#playing:true;coordinate:-1362525,4001572;zoom:5.9;coverage:radc;num_frames:8;frame_rate:10;"
     title="Satellite"
     allowfullscreen
     loading="lazy"
     sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-  ></iframe>
-  <iframe id="re-iframe" style="width:100%; height:100%; border:none; display:none;"></iframe>
-  <!-- Alternative Satellite sources: 
-   ORIGINAL: https://geosphere.ssec.wisc.edu/#playing:true;coordinate:-1362525,4001572;zoom:5.9;coverage:radc;num_frames:8;frame_rate:10;
-   ALTS:
-   - https://www.star.nesdis.noaa.gov/goes/sector_band.php?sat=G19&sector=umv&band=GEOCOLOR&length=24&dim=1&refresh=true
-   -->  
+  ></iframe> 
   <!-- SPC map lives INSIDE the satellite panel -->
   <div id="spc-map-container">
 
@@ -1442,6 +1417,11 @@ let manualDateOverride = null;
 let modelStationICAO = 'kcid'; 
 let isModelSoundingActive = false;
 let lastSelectedModelHour = null;
+let spcDay1Risk = null;   // set by fetchForecast() from the SPC Day 1 outlook
+function severeDayActive() {
+  return ['SLGT', 'ENH', 'MOD', 'HIGH'].includes(spcDay1Risk);
+}
+
 //window.loadModelSounding = loadModelSounding;
 
 const CLOUD_SVG_PATHS = {
@@ -1660,14 +1640,17 @@ function updateClock() {
   let h12 = now.getHours();
   const ampm = h12 >= 12 ? 'PM' : 'AM';
   h12 = h12 % 12 || 12;
-  const localTime = `${h12}:${p(now.getMinutes())}:${p(now.getSeconds())}${ampm}`;
+
+  const localTime = IS_TV ? `${h12}:${p(now.getMinutes())}${ampm}` : `${h12}:${p(now.getMinutes())}:${p(now.getSeconds())}${ampm}`;
 
   // Zulu 24hr
-  const zuluTime = `${p(now.getUTCHours())}:${p(now.getUTCMinutes())}:${p(now.getUTCSeconds())}Z`;
+  const zuluTime = IS_TV ? `${p(now.getUTCHours())}:${p(now.getUTCMinutes())}Z` : `${p(now.getUTCHours())}:${p(now.getUTCMinutes())}:${p(now.getUTCSeconds())}Z`;
 
   document.getElementById('clock').textContent = `${localTime}         |         ${zuluTime}`;
 }
-setInterval(updateClock, 1000);
+
+
+//setInterval(updateClock, 1000);
 updateClock();
 
 // Page Visibility API: pause the 1-second clock tick when the TV screen turns off
@@ -1691,7 +1674,9 @@ function updateDate() {
   const localDate = now.toLocaleDateString(undefined, options);
   document.getElementById('date-display').textContent = localDate;
 }
-setInterval(updateDate, 60 * 1000);
+
+
+//setInterval(updateDate, 60 * 1000);
 updateDate();
 
 let clockTimer = setInterval(updateClock, 1000);
@@ -1713,144 +1698,6 @@ document.addEventListener('visibilitychange', () => {
 });
 
 
-
-
-// ########################## Original drawWindBarb Block ###########################
-/*
-function drawWindBarb(speedMph, dirDeg) {
-  const g = document.getElementById('wind-barb');
-  g.innerHTML = ''; // clear previous
-
-  let kt = Math.round(speedMph * 0.868976); // convert mph → knots
-  const cx = 36, cy = 36;
-  const shaftLen = 30; // px, shaft runs from center outward
-  const color = '#3aa0ff';
-  const strokeW = 3.0;
-
-
-  // Calm: two concentric circles, no shaft
-  if (kt < 3) {
-    const c1 = document.createElementNS('http://www.w3.org/2000/svg','circle');
-    c1.setAttribute('cx', cx); c1.setAttribute('cy', cy);
-    c1.setAttribute('r', 4); c1.setAttribute('fill','none');
-    c1.setAttribute('stroke', color); c1.setAttribute('stroke-width', strokeW);
-    const c2 = document.createElementNS('http://www.w3.org/2000/svg','circle');
-    c2.setAttribute('cx', cx); c2.setAttribute('cy', cy);
-    c2.setAttribute('r', 7); c2.setAttribute('fill','none');
-    c2.setAttribute('stroke', color); c2.setAttribute('stroke-width', strokeW);
-    g.appendChild(c1); g.appendChild(c2);
-    return;
-  }
-
-  if (kt >=3 && kt < 5) {
-    // Light air: single short barb
-    kt = 5; // treat as 5kt for barb drawing
-    //('kt is between 3 and 5:');
-  }
-
-
-  // Wind barbs point INTO the wind — shaft tip is at center (station dot),
-  // barbs hang off the far end of the shaft.
-  // SVG is drawn pointing NORTH (up), then rotated to dirDeg.
-
-  // Shaft: from center (station) upward to tip
-  const tipY   = cy - shaftLen;
-  const shaft  = document.createElementNS('http://www.w3.org/2000/svg','line');
-  shaft.setAttribute('x1', cx); shaft.setAttribute('y1', cy);
-  shaft.setAttribute('x2', cx); shaft.setAttribute('y2', tipY);
-  shaft.setAttribute('stroke', color); shaft.setAttribute('stroke-width', strokeW);
-  shaft.setAttribute('stroke-linecap','round');
-  g.appendChild(shaft);
-
-  // Station dot
-  const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
-  dot.setAttribute('cx', cx); dot.setAttribute('cy', cy);
-  dot.setAttribute('r', 3.2); dot.setAttribute('fill', color);
-  g.appendChild(dot);
-
-  // Stem extending downwind from station dot
-  const tipSize = 1;
-  const stem = document.createElementNS('http://www.w3.org/2000/svg','line');
-  stem.setAttribute('x1', cx); stem.setAttribute('y1', cy + 2);
-  stem.setAttribute('x2', cx); stem.setAttribute('y2', cy + tipSize * 2.5);
-  stem.setAttribute('stroke', color); stem.setAttribute('stroke-width', strokeW);
-  g.appendChild(stem);
-
-  // Arrowhead at the station end pointing away from wind source (downwind)
-  const arrow = document.createElementNS('http://www.w3.org/2000/svg','polygon');
-  arrow.setAttribute('points', `
-    ${cx},${cy + tipSize * 36}
-    ${cx - tipSize*3},${cy + tipSize * 26}
-    ${cx},${cy + tipSize * 28}
-    ${cx + tipSize*3},${cy + tipSize * 26}
-  `);
-  arrow.setAttribute('fill', color);
-  g.appendChild(arrow);
-
-  // Decompose speed into barb components (knots)
-  let remaining = kt;
-  const pennants = Math.floor(remaining / 50); remaining -= pennants * 50;
-  const fullBarbs = Math.floor(remaining / 10); remaining -= fullBarbs * 10;
-  const halfBarbs = Math.floor(remaining / 5);
-
-  // Barbs are drawn from the tip downward along the shaft
-  const barbLen   = 12;  // full barb length (px)
-  const barbAngle = 105;  // degrees from shaft (convention)
-  const barbStep  = 5;   // spacing along shaft between barbs
-  const rad       = barbAngle * Math.PI / 180;
-
-  let pos = tipY; // current position along shaft (y), starts at tip
-
-  // Pennants (filled triangles, 50kt each)
-  for (let i = 0; i < pennants; i++) {
-    const y0 = pos;
-    const y1 = pos + barbStep;
-    // Triangle: tip of shaft side, base at y1, point to the right
-    const px0 = cx,            py0 = y0;
-    const px1 = cx,            py1 = y1;
-    const px2 = cx + barbLen,  py2 = y0 + (barbStep / 2);
-    const tri = document.createElementNS('http://www.w3.org/2000/svg','polygon');
-    tri.setAttribute('points', `${px0},${py0} ${px1},${py1} ${px2},${py2}`);
-    tri.setAttribute('fill', color); tri.setAttribute('stroke', color);
-    tri.setAttribute('stroke-width', 0.5);
-    g.appendChild(tri);
-    pos += barbStep + 1;
-  }
-
-  // Full barbs (10kt each)
-  for (let i = 0; i < fullBarbs; i++) {
-    const x2 = cx + barbLen * Math.sin(rad);
-    const y2 = pos + barbLen * Math.cos(rad);  // leans back toward base
-    const barb = document.createElementNS('http://www.w3.org/2000/svg','line');
-    barb.setAttribute('x1', cx); barb.setAttribute('y1', pos);
-    barb.setAttribute('x2', x2); barb.setAttribute('y2', y2);
-    barb.setAttribute('stroke', color); barb.setAttribute('stroke-width', strokeW);
-    barb.setAttribute('stroke-linecap','round');
-    g.appendChild(barb);
-    pos += barbStep;
-  }
-
-
-  // Half barb (5kt) — half the length, always last
-  if (halfBarbs) {
-    // If no full barbs or pennants, offset down from tip so it doesn't sit flush on the end
-    if (pennants === 0 && fullBarbs === 0) pos += barbStep;
-    const x2 = cx + (barbLen / 2) * Math.sin(rad);
-    const y2 = pos + (barbLen / 2) * Math.cos(rad);
-    const barb = document.createElementNS('http://www.w3.org/2000/svg','line');
-    barb.setAttribute('x1', cx); barb.setAttribute('y1', pos);
-    barb.setAttribute('x2', x2); barb.setAttribute('y2', y2);
-    barb.setAttribute('stroke', color); barb.setAttribute('stroke-width', strokeW);
-    barb.setAttribute('stroke-linecap','round');
-    g.appendChild(barb);
-  }
-
-  // Rotate entire barb group to wind direction
-  // Meteorological convention: dir is where wind comes FROM,
-  // so the shaft points FROM the station INTO the wind source.
-  g.setAttribute('transform', `rotate(${dirDeg}, ${cx}, ${cy})`);
-}
-*/
 
 //TV Optomized WindBarb Block
 // Global tracker to prevent unnecessary SVG DOM teardown/recreation
@@ -2232,6 +2079,7 @@ function getPrecipWindows(dayText, nightText) {
 
 // ---- FORECAST — NWS API----
 let _forecastAbortCtrl = null;
+const ICON_DIR = IS_TV ? 'static' : 'animated';   // TV: still icons (no constant repaint)
 async function fetchForecast() {
   // Cancel any previous in-flight forecast fetch so stale requests don't pile up
   // on slow connections (e.g. smart TV Wi-Fi).
@@ -2260,6 +2108,12 @@ async function fetchForecast() {
     const severeRisksData = await getMultiDayRisks();
     const severeRisks = severeRisksData.risks;
     const day1ValidDate = severeRisksData.day1ValidDate;
+
+    const wasSevere = severeDayActive();
+    spcDay1Risk = severeRisks[0] || 'NONE';
+    // Only re-check the sounding if the severe/not-severe status actually flipped
+    if (wasSevere !== severeDayActive() && new Date().getUTCHours() >= 18 &&
+        !manualStationOverride && !isModelSoundingActive) loadSounding();
 
     // Calculate alignment offset if NWS rolled to tomorrow but SPC Day 1 is still today
     let riskIndexOffset = 0;
@@ -2348,6 +2202,8 @@ async function fetchForecast() {
       const longDayName = new Date(day.startTime).toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
 
       // --- RESTRUCTURE HTML STRING TO CACHE SEPARATE DAY & NIGHT DATA ATTRIBUTES ---
+      //Animated Icons src:  src="https://cdn.jsdelivr.net/gh/Makin-Things/weather-icons@main/animated/${iconFile}.svg"
+      //Still Icons src:     src="https://cdn.jsdelivr.net/gh/Makin-Things/weather-icons@main/${ICON_DIR}/${iconFile}.svg"
       html += `
         <div class="forecast-card" onclick="toggleForecastExpand(this)" style="padding-top: 0; overflow: hidden;">
           <div class="forecast-card-day" 
@@ -2357,7 +2213,7 @@ async function fetchForecast() {
             ${dayName}
           </div>
           
-          <img class="forecast-card-icon" ${iconStyle} src="https://cdn.jsdelivr.net/gh/Makin-Things/weather-icons@main/animated/${iconFile}.svg">
+          <img class="forecast-card-icon" ${iconStyle} src="https://cdn.jsdelivr.net/gh/Makin-Things/weather-icons@main/${ICON_DIR}/${iconFile}.svg">
           
           <div class="forecast-card-desc" 
                data-short="${shortDesc.replace(/"/g, '&quot;')}" 
@@ -2382,7 +2238,48 @@ async function fetchForecast() {
   }
 }
 
+
+// Reads each icon's SVG once, finds its longest animation-duration, and uses that as the loop length
+const ICON_LOOP_CACHE = {};
+async function getIconLoopMs(url) {
+  if (ICON_LOOP_CACHE[url]) return ICON_LOOP_CACHE[url];
+  let ms = 8000;   // fallback if the file can't be read or has no durations
+  try {
+    const text = await (await fetch(url)).text();
+    const secs = [];
+    const re = /(?:animation-duration\s*:|dur\s*=\s*["'])\s*([\d.]+)\s*(ms|s)/gi;
+    let m;
+    while ((m = re.exec(text))) secs.push(parseFloat(m[1]) * (m[2].toLowerCase() === 'ms' ? 1 : 1000));
+    if (secs.length) ms = Math.max(...secs);
+  } catch (e) {}
+  return (ICON_LOOP_CACHE[url] = ms);
+}
+
+async function playIconOneLoop(card) {
+  const icon = card.querySelector('.forecast-card-icon');
+  if (!icon) return;
+  const animatedUrl = icon.src.replace(/\/(static|animated)\//, '/animated/');
+  const loopMs = await getIconLoopMs(animatedUrl);
+  if (!card.classList.contains('expanded')) return;   // closed while the file was being read
+  // The SVG's animation starts when it loads, so count one full loop from the load event
+  icon.addEventListener('load', function onLoad() {
+    icon.removeEventListener('load', onLoad);
+    window._iconFreezeT = setTimeout(() => setForecastIcon(card, false), loopMs); // to play the loop twice set loopMs to loopMs * 2
+  });
+  setForecastIcon(card, true);
+}
+
+
+// TV mode only: forecast icons are still by default; the expanded card's icon animates
+function setForecastIcon(card, animated) {
+  const icon = card.querySelector('.forecast-card-icon');
+  if (!icon) return;
+  const next = icon.src.replace(/\/(static|animated)\//, '/' + (animated ? 'animated' : 'static') + '/');
+  if (icon.src !== next) icon.src = next;   // only touch it when it actually changes
+}
+
 function toggleForecastExpand(card) {
+  clearTimeout(window._iconStartT); clearTimeout(window._iconFreezeT);   // cancel any pending icon animation
   const list = document.getElementById('forecast-list');
   const isCurrentlyExpanded = card.classList.contains('expanded');
   const dayTitleEl = card.querySelector('.forecast-card-day');
@@ -2390,6 +2287,7 @@ function toggleForecastExpand(card) {
   // 1. Reset all cards back to baseline unexpanded states
   document.querySelectorAll('.forecast-card').forEach(c => {
     c.classList.remove('expanded');
+    if (IS_TV) setForecastIcon(c, false);
     
     // Reset Day Abbreviation titles (e.g. TUESDAY -> TUE)
     const titleEl = c.querySelector('.forecast-card-day');
@@ -2408,6 +2306,15 @@ function toggleForecastExpand(card) {
   if (!isCurrentlyExpanded) {
     list.classList.add('has-expanded');
     card.classList.add('expanded');
+    //if (IS_TV) setForecastIcon(card, true);
+    if (IS_TV) {
+      window._iconStartT = setTimeout(() => {
+        if (!card.classList.contains('expanded')) return;   // closed before it started
+        //setForecastIcon(card, true);                        // start after the panel has opened
+        //window._iconFreezeT = setTimeout(() => setForecastIcon(card, false), 5000);   // play 5 s, then freeze
+        playIconOneLoop(card);                              // play exactly one full loop, then freeze
+      }, 700);
+    }
     
     // Get the full name string (e.g. "TUESDAY")
     const fullDayName = dayTitleEl ? dayTitleEl.getAttribute('data-full-day') : '';
@@ -2695,6 +2602,10 @@ function updateTicker() {
   
   // 3. Apply the new duration directly to the element
   tickerEl.style.animationDuration = `${calculatedDuration}s`;
+  // TV only: step the ticker at 30 updates/sec instead of every screen refresh
+  if (IS_TV) {
+    tickerEl.style.animationTimingFunction = 'steps(' + Math.round(calculatedDuration * 30) + ', end)';
+  }
 }
 
 function drawSunArc() {
@@ -3167,10 +3078,13 @@ async function fetchAlerts() {
     applyAlertBackground(alerts);
     maybeScrollAlerts();
 
+    alertsHasWarning = hasWarning;
+    alertsWaitMs = alerts.length > 0 ? 2 * 60 * 1000 : 5000;
     if (!hasWarning) {
-      startAlertsCycle(alerts.length > 0 ? 2 * 60 * 1000 : 5000);
+      startAlertsCycle();
     } else {
       clearTimeout(alertsTabTimer);
+      if (currentAlertsTab === 'stories') switchAlertsTab('alerts');   // cut the stories short for a warning
     }
 
     // Update ticker with active alerts
@@ -3197,7 +3111,11 @@ let wxStories        = [];
 let wxStoryIndex     = 0;
 let wxStoryTimer     = null;
 let alertsTabTimer   = null;
+let alertsWaitMs     = 5000;    // how long to stay on the alerts tab: 5s if no alerts, 2 min if non-warning alerts
+let alertsHasWarning = false;   // true = never leave the alerts tab
 let currentAlertsTab = 'alerts';
+let wxStoryPaused    = false;
+let wxExpanded       = false;
 
 async function fetchWxStories() {
   try {
@@ -3244,6 +3162,7 @@ function showStory(index) {
 }
 
 function switchAlertsTab(tab) {
+  if (wxExpanded) collapseStory(true);   // never leave a story expanded when switching tabs
   currentAlertsTab = tab;
   clearTimeout(alertsTabTimer);
   clearInterval(wxStoryTimer);
@@ -3296,6 +3215,7 @@ function switchAlertsTab(tab) {
     showStory(0);
 
     wxStoryTimer = setInterval(() => {
+      if (wxStoryPaused) return;   // paused while a story is expanded
       const next = wxStoryIndex + 1;
       if (next >= wxStories.length) {
         clearInterval(wxStoryTimer);
@@ -3309,8 +3229,9 @@ function switchAlertsTab(tab) {
 }
 
 // Auto-cycle: show stories tab every 2 minutes for however long stories take, then back
-function startAlertsCycle(waitMs = 2 * 60 * 1000) {
+function startAlertsCycle(waitMs = alertsWaitMs) {
   clearTimeout(alertsTabTimer);
+  if (alertsHasWarning) return;   // a warning is active: stay on alerts
   alertsTabTimer = setTimeout(() => {
     if (wxStories.length > 0) {
       switchAlertsTab('stories');
@@ -3318,18 +3239,92 @@ function startAlertsCycle(waitMs = 2 * 60 * 1000) {
   }, waitMs);
 }
 
+// ---- WX STORIES: double-click the image to expand / collapse ----
+let wxPlaceholder = null;
+let wxWrapCss     = '';
+let wxBusy        = false;
 
-/*function getSPCTime() {
-  const now = new Date();
+function toggleStoryExpand() {
+  if (wxBusy) return;
+  if (wxExpanded) collapseStory(false); else expandStory();
+}
 
-  const year = String(now.getUTCFullYear()).slice(2);
-  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(now.getUTCDate()).padStart(2, '0');
 
-  const hour = now.getUTCHours() >= 12 ? "12" : "00";
+function expandStory() {
+  const wrap = document.getElementById('story-img-wrap');
+  const img  = document.getElementById('story-img');
+  if (!wrap || !img.getAttribute('src') || wrap.getClientRects().length === 0) return;
 
-  return `${year}${month}${day}${hour}`;
-}*/
+  const r = wrap.getBoundingClientRect();
+  wxWrapCss = wrap.style.cssText;
+  wxExpanded = true;
+  wxStoryPaused = true;
+
+  // Placeholder keeps the dots / sun row from jumping while the image floats above
+  wxPlaceholder = document.createElement('div');
+  wxPlaceholder.style.cssText = 'flex:1;min-height:0;';
+  wrap.parentNode.insertBefore(wxPlaceholder, wrap);
+
+  // Anchor: the RIGHT-CENTER point of the image stays fixed; it grows left, up and down
+  const cy   = r.top + r.height / 2;
+  const EXPAND_W_FRAC = 0.5;    // max width  as a fraction of the screen width  (tune this)
+  const EXPAND_H_FRAC = 0.65;   // max height as a fraction of the screen height (tune this)
+  const maxW = Math.min(r.right - 8, window.innerWidth * EXPAND_W_FRAC);
+  const maxH = Math.min(2 * Math.min(cy - 8, window.innerHeight - cy - 8), window.innerHeight * EXPAND_H_FRAC);
+  let w = maxW, h = maxH;
+  if (img.naturalWidth) {
+    const s = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight);
+    w = Math.round(img.naturalWidth * s);
+    h = Math.round(img.naturalHeight * s);
+  }
+  const topEnd = Math.round(cy - h / 2);
+
+  Object.assign(wrap.style, {
+    position: 'fixed', right: (window.innerWidth - r.right) + 'px', top: topEnd + 'px',
+    left: 'auto', bottom: 'auto', flex: 'none', zIndex: '5000', boxSizing: 'border-box',
+    //background: '#0b0f14', border: '1px solid var(--accent)', borderRadius: '6px', userSelect: 'none',
+    background: '#0b0f14', border: '1px solid #000', borderRadius: '6px', userSelect: 'none',
+    width: w + 'px', height: h + 'px'
+  });
+  document.getElementById('story-title').style.fontSize = '14px';
+
+  wxBusy = true;
+  wrap.animate(
+    [{ width: r.width + 'px', height: r.height + 'px', top: r.top + 'px' },
+     { width: w + 'px',       height: h + 'px',        top: topEnd + 'px' }],
+    { duration: 300, easing: 'ease-out' }
+  ).onfinish = () => { wxBusy = false; };
+}
+
+
+function collapseStory(instant) {
+  const wrap = document.getElementById('story-img-wrap');
+  if (!wxExpanded || !wrap) return;
+
+  const done = () => {
+    wrap.style.cssText = wxWrapCss;
+    document.getElementById('story-title').style.fontSize = '';
+    if (wxPlaceholder) { wxPlaceholder.remove(); wxPlaceholder = null; }
+    wxExpanded = false;
+    wxStoryPaused = false;
+    wxBusy = false;
+  };
+
+  if (instant || !wxPlaceholder) { done(); return; }
+
+  const ph = wxPlaceholder.getBoundingClientRect();
+  wxBusy = true;
+  const anim = wrap.animate(
+    //[{ width: wrap.offsetWidth + 'px', height: wrap.offsetHeight + 'px' }, { width: ph.width + 'px', height: ph.height + 'px' }],
+    [{ width: wrap.offsetWidth + 'px', height: wrap.offsetHeight + 'px', top: wrap.getBoundingClientRect().top + 'px' },
+     { width: ph.width + 'px',         height: ph.height + 'px',          top: ph.top + 'px' }],
+    { duration: 250, easing: 'ease-in', fill: 'forwards' }
+  );
+  anim.onfinish = () => { anim.cancel(); done(); };   // release the held end-frame so it can't override later expands
+}
+
+document.getElementById('story-img-wrap').addEventListener('dblclick', toggleStoryExpand);
+
 function getSPCTime() {
   const hour = new Date().getUTCHours() >= 12 ? "12" : "00";
   return `${soundingDateStr(hour)}${hour}`;
@@ -5805,9 +5800,15 @@ async function fetchSPCSoundingFor(station, overrideHour, overrideDate) {
 
   let hour;
   if (overrideHour !== undefined) hour = overrideHour;
-  else if (utcH >= 19) hour = '18';
+  else if (utcH >= 18) hour = '18';
   else if (utcH >= 12) hour = '12';
   else hour = '00';
+
+  // If the launch hour hasn't happened yet today (UTC), it must be yesterday's sounding
+  if (!overrideDate && Number(hour) > utcH) {
+    const yest = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    datePart = yest.toISOString().slice(2, 10).replace(/-/g, '');
+  }
 
   // Use the datePart and hour for the URL
   const url = `https://www.spc.noaa.gov/exper/soundings/${datePart}${hour}_OBS/${station}.txt`;
@@ -5860,13 +5861,19 @@ async function loadSounding() {
     else {
       // ONLY now do we invoke the sequence/fallback logic
       if (prefer12zFallback) {
-        result = await tryStations('ILX', 'DVN', '12', undefined);
+        //result = await tryStations('ILX', 'DVN', '12', undefined);
+        result = await tryStations('DVN', 'ILX', '12', undefined);
       } else {
-        try {
-          result = await tryStations('DVN', 'ILX', undefined, undefined);
-        } catch (e) {
-          console.warn('DVN+ILX both failed, falling back to 12z ILX');
-          result = await tryStations('ILX', 'DVN', '12', undefined);
+        if (new Date().getUTCHours() >= 18 && !severeDayActive()) {
+          // Quiet day: 18z soundings aren't normally launched, so go straight to 12z
+          result = await fetchSPCSoundingFor('DVN', '12', undefined);
+        } else {
+          try {
+            result = await fetchSPCSoundingFor('DVN', undefined, undefined);
+          } catch (e) {
+            console.warn('DVN current-hour sounding failed, falling back to DVN 12z');
+            result = await fetchSPCSoundingFor('DVN', '12', undefined);
+          }
         }
       }
     }
@@ -5879,8 +5886,9 @@ async function loadSounding() {
       //label.style.color = 'var(--accent)';
       label.style.color = '#00B90C';
     } else if (prefer12zFallback) {
-      const wasPreferred = result.station === 'ILX';
-      label.textContent = wasPreferred ? `ILX - ${runTag}` : `DVN - ${runTag}`;
+      //const wasPreferred = result.station === 'ILX';
+      const wasPreferred = result.station === 'DVN';
+      label.textContent = wasPreferred ? `DVN - ${runTag}` : `ILX - ${runTag}`;
       label.style.color = wasPreferred ? '#ffb060' : 'var(--accent)';
     } else {
       const wasPreferred = result.station === 'DVN';
@@ -6315,6 +6323,8 @@ function getParcelPath(data) {
 //other SAT SOURCES: 
 // https://www.star.nesdis.noaa.gov/goes/sector_band.php?sat=G19&sector=umv&band=GEOCOLOR&length=24&dim=1&refresh=true
 // ---- SATELLITE TOGGLE ----
+
+
 const SAT_SOURCES = {
   satellite: {
     url:   'https://geosphere.ssec.wisc.edu/#playing:true;coordinate:-1362525,4001572;zoom:5.9;coverage:radc;num_frames:8;frame_rate:10;',
@@ -6338,98 +6348,74 @@ const SAT_SOURCES = {
   }
 };
 
-// ############################################## NEW CONTENT 8.11.26 #####################################################-->
-// ---- SATELLITE SOURCE VARIANT (CSPP vs SSEC Wx) ----
-/*
-const SAT_ALT_SOURCES = {
-  cspp: 'https://geosphere.ssec.wisc.edu/#playing:true;coordinate:-1362525,4001572;zoom:5.9;coverage:radc;num_frames:8;frame_rate:10;',
-  ssec:  'https://realearth.ssec.wisc.edu/?products=G19-ABI-CONUS-geo-color.-100,G19-ABI-CONUS-true-color,SSEC-METAR.-100,Fronts.-100,MERGEDREF,NWS-Alerts-Other.-100,NWS-Alerts-Winter-Weather,NWS-Alerts-Non-Convective,NWS-Alerts-Convective,GOESEastGLMFEDRadC.-100,glmgroupdensity.-100,glmgrouppoints.-100,G19-ABI-MESO1-true-color.-100,G19-ABI-MESO2-true-color.-100&center=41.972942,-91.658210&zoom=7&basemap=filled&labels=line&view=mbmercator&collection=RealEarth&timespan=-1h,0s&timestep=5m&animationspeed=82'
-};
-let satSourceVariant = localStorage.getItem('satSourceVariant') || 'cspp';
-SAT_SOURCES.satellite.url = SAT_ALT_SOURCES[satSourceVariant]; // make sure "satellite" entry starts on the saved variant
 
-function toggleSatSource() {
-  satSourceVariant = (satSourceVariant === 'cspp') ? 'ssec' : 'cspp';
-  localStorage.setItem('satSourceVariant', satSourceVariant);
-  SAT_SOURCES.satellite.url = SAT_ALT_SOURCES[satSourceVariant];
+// TV ONLY: replace the heavy interactive NWS radar with a lightweight looping GIF.
+// Swap CONUS-LARGE for a single radar site (e.g. KDMX) if you want a local view.
+const DEBUG_ON = window.location.search.includes('debug=1') || localStorage.getItem('debug') === '1';
+const TV_RADAR_GIF = 'https://radar.weather.gov/ridge/standard/CONUS-LARGE_loop.gif';
+//const TV_RADAR_GIF = 'https://radar.weather.gov/ridge/standard/UPPERMISSVLY_loop.gif';
+//const TV_RADAR_GIF = 'https://radar.weather.gov/ridge/standard/CONUS_loop.gif';
+if (IS_TV) {
+  // Zoom/crop tuning: ZOOM = magnification, FOCUS_X 0% is the left edge / FOCUS_Y = point to zoom toward 0% is the top edge
+  const ZOOM = 3.3, FOCUS_X = '55%', FOCUS_Y = '32%';
+  const TV_DEBUG = DEBUG_ON;
+  const radarScript = `
+    var img=document.getElementById("r"),dbg=document.getElementById("dbg");
+    var Z0=${ZOOM},X0=${parseFloat(FOCUS_X) / 100},Y0=${parseFloat(FOCUS_Y) / 100},z=Z0,cx=X0,cy=Y0,nw=0,nh=0,drag=false,lx=0,ly=0;
+    try{var sv=JSON.parse(localStorage.getItem("radarView"));if(sv&&sv.z>=1&&sv.z<=8){z=sv.z;cx=sv.cx;cy=sv.cy;}}catch(e){}
+    var saveT;function saveView(){clearTimeout(saveT);saveT=setTimeout(function(){try{localStorage.setItem("radarView",JSON.stringify({z:z,cx:cx,cy:cy}));}catch(e){}},400);}
+    function geom(){var w=innerWidth,h=innerHeight,b=Math.min(w/nw,h/nh);return{w:w,h:h,W:nw*b*z,H:nh*b*z};}
+    function pos(g){var L=g.w/2-cx*g.W,T=g.h/2-cy*g.H;
+    L=g.W<=g.w?(g.w-g.W)/2:Math.min(0,Math.max(g.w-g.W,L));
+    T=g.H<=g.h?(g.h-g.H)/2:Math.min(0,Math.max(g.h-g.H,T));return{L:L,T:T};}
+    function apply(){if(!nw)return;var g=geom(),p=pos(g);
+    cx=g.W>g.w?(g.w/2-p.L)/g.W:0.5;cy=g.H>g.h?(g.h/2-p.T)/g.H:0.5;
+    img.style.width=g.W+"px";img.style.height=g.H+"px";img.style.left=p.L+"px";img.style.top=p.T+"px";img.style.visibility="visible";
+    if(dbg)dbg.textContent="zoom "+z.toFixed(2)+"x  X "+(cx*100).toFixed(0)+"%  Y "+(cy*100).toFixed(0)+"%";saveView();}
+    addEventListener("wheel",function(e){e.preventDefault();var g=geom(),p=pos(g),ix=(e.clientX-p.L)/g.W,iy=(e.clientY-p.T)/g.H;
+    z=Math.min(8,Math.max(1,z*(e.deltaY<0?1.15:1/1.15)));var g2=geom(),L=e.clientX-ix*g2.W,T=e.clientY-iy*g2.H;
+    cx=(g2.w/2-L)/g2.W;cy=(g2.h/2-T)/g2.H;apply();},{passive:false});
+    addEventListener("mousedown",function(e){drag=true;lx=e.clientX;ly=e.clientY;document.body.style.cursor="grabbing";});
+    addEventListener("mouseup",function(){drag=false;document.body.style.cursor="grab";});
+    addEventListener("mouseleave",function(){drag=false;});
+    addEventListener("mousemove",function(e){if(!drag)return;var g=geom();cx-=(e.clientX-lx)/g.W;cy-=(e.clientY-ly)/g.H;lx=e.clientX;ly=e.clientY;apply();});
+    addEventListener("dblclick",function(){z=Z0;cx=X0;cy=Y0;apply();});
+    addEventListener("resize",apply);
 
-  if (satMode === 'satellite') {
-    document.getElementById('sat-iframe').src = SAT_ALT_SOURCES[satSourceVariant];
+    var SF_X=0.11,SF_Y=0.055,SF_W=0.09,SF_H=0.04,SHOW_W=220;
+
+    var sImg=document.getElementById("s"),stamp=document.getElementById("stamp");
+    sImg.src=img.src;
+    function sizeStamp(){var S=SHOW_W/(SF_W*nw);sImg.style.width=(nw*S)+"px";sImg.style.height=(nh*S)+"px";sImg.style.left=(-SF_X*nw*S)+"px";sImg.style.bottom=(-SF_Y*nh*S)+"px";stamp.style.width=SHOW_W+"px";stamp.style.height=(SF_H*nh*S)+"px";stamp.style.visibility="visible";}
+    img.onload=function(){nw=img.naturalWidth;nh=img.naturalHeight;sizeStamp();apply();};
+    if(img.complete&&img.naturalWidth)img.onload();
+    var sizeWait=setInterval(function(){if(img.naturalWidth){clearInterval(sizeWait);img.onload();}},50);
+    var GIF_URL="${TV_RADAR_GIF}",REFRESH_MIN=3;
+    function refreshGif(){var n=new Image();n.onload=function(){var u=n.src;img.src=u;sImg.src=u;nw=n.naturalWidth;nh=n.naturalHeight;sizeStamp();apply();};n.src=GIF_URL+"?t="+Date.now();}
+    setInterval(refreshGif,REFRESH_MIN*60000);
+    `;
+    /* ------ Date and time radar overlay: var SF_X=0.015,SF_Y=0.055,SF_W=0.185,SF_H=0.04,SHOW_W=240;   ------- */
+    /* ------ Time Only radar overlay: var SF_X=0.11,SF_Y=0.055,SF_W=0.09,SF_H=0.04,SHOW_W=220;         ------- */
+  const tvRadarHtml =
+    '<body style="margin:0;background:#0b0f14;overflow:hidden;cursor:grab">' +
+    '<img id="r" draggable="false" src="' + TV_RADAR_GIF + '" style="visibility:hidden;position:absolute;left:0;top:0;max-width:none;user-select:none">' +
+    '<div id="stamp" style="visibility:hidden;position:fixed;left:6px;bottom:6px;overflow:hidden;border:1px solid #000;border-radius:3px;background:#000;pointer-events:none"><img id="s" style="position:absolute;left:0;bottom:0;max-width:none"></div>' +
+    (TV_DEBUG ? '<div id="dbg" style="position:fixed;right:6px;bottom:6px;padding:2px 6px;background:rgba(0,0,0,.7);color:#0f0;font:11px monospace;pointer-events:none"></div>' : '') +
+    '<script>' + radarScript + '<\/script><\/body>';
+  SAT_SOURCES.radar.srcdoc = tvRadarHtml;   // loaded via iframe srcdoc (no data: URL)
+}
+
+function loadSatFrame(src) {
+  const frame = document.getElementById('sat-iframe');
+  if (src.srcdoc) {
+    //frame.srcdoc = src.srcdoc;
+    frame.srcdoc = src.srcdoc.replace(TV_RADAR_GIF, TV_RADAR_GIF + '?t=' + Date.now());
+  } else {
+    frame.removeAttribute('srcdoc');
+    frame.src = src.url;
   }
-  document.getElementById('sat-source-toggle').textContent =
-    (satSourceVariant === 'cspp') ? 'SSEC' : 'CSPP';
-}
-// ############################################## NEW CONTENT 8.11.26 #####################################################-->
-*/
-
-const SAT_ALT_SOURCES = {
-  cspp: 'https://geosphere.ssec.wisc.edu/#playing:true;coordinate:-1362525,4001572;zoom:5.9;coverage:radc;num_frames:8;frame_rate:10;'
-};
-let satSourceVariant = localStorage.getItem('satSourceVariant') || 'cspp';
-
-let reController = null; // holds the RealEarth widget instance once created
-
-/*
-function showRealEarthWidget() {
-  document.getElementById('sat-iframe').style.display = 'none';
-  document.getElementById('re_canvas').style.display   = 'block';
-
-  if (!reController) {
-    reController = new ssec.realearth.ViewController('re_canvas', {
-      ui: false,
-      selector: false,
-      products: 'G19-ABI-CONUS-geo-color.-100,G19-ABI-CONUS-true-color,SSEC-METAR.-100,Fronts.-100,MERGEDREF,NWS-Alerts-Other.-100,NWS-Alerts-Winter-Weather,NWS-Alerts-Non-Convective,NWS-Alerts-Convective,GOESEastGLMFEDRadC.-100,glmgroupdensity.-100,glmgrouppoints.-100,G19-ABI-MESO1-true-color.-100,G19-ABI-MESO2-true-color.-100',
-      bounds: '40.0856,-96.2175,43.8060,-87.0989'
-    });
-  }
-}*/
-
-function showRealEarthWidget() {
-  document.getElementById('sat-iframe').style.display = 'none';
-  const reIframe = document.getElementById('re-iframe');
-  reIframe.style.display = 'block';
-
-  if (!reIframe.dataset.loaded) {
-    reController = new ssec.realearth.ViewController('re-iframe', {
-      ui: false,
-      selector: false,
-      products: 'G19-ABI-CONUS-geo-color.-100,G19-ABI-CONUS-true-color,SSEC-METAR.-100,Fronts.-100,MERGEDREF,NWS-Alerts-Other.-100,NWS-Alerts-Winter-Weather,NWS-Alerts-Non-Convective,NWS-Alerts-Convective,GOESEastGLMFEDRadC.-100,glmgroupdensity.-100,glmgrouppoints.-100,G19-ABI-MESO1-true-color.-100,G19-ABI-MESO2-true-color.-100',
-      bounds: '40.0856,-96.2175,43.8060,-87.0989'
-    });
-    reIframe.dataset.loaded = 'true';
-  }
 }
 
-
-function showCsppIframe() {
-  const reIframe = document.getElementById('re-iframe');
-  if (reIframe) reIframe.style.display = 'none';
-  document.getElementById('sat-iframe').style.display = 'block';
-  document.getElementById('sat-iframe').src = SAT_ALT_SOURCES.cspp;
-}
-
-// Initialize on load in whichever mode was saved
-if (satSourceVariant === 'ssec') {
-  SAT_SOURCES.satellite.url = null; // handled by widget instead of iframe src
-} else {
-  SAT_SOURCES.satellite.url = SAT_ALT_SOURCES.cspp;
-}
-
-function toggleSatSource() {
-  satSourceVariant = (satSourceVariant === 'cspp') ? 'ssec' : 'cspp';
-  localStorage.setItem('satSourceVariant', satSourceVariant);
-
-  if (satMode === 'satellite') {
-    if (satSourceVariant === 'ssec') {
-      showRealEarthWidget();
-    } else {
-      showCsppIframe();
-    }
-  }
-
-  document.getElementById('sat-source-toggle').textContent =
-    (satSourceVariant === 'cspp') ? 'SSEC' : 'CSPP';
-}
 
 
 let satMode = localStorage.getItem('satMode') || 'satellite';
@@ -6462,21 +6448,11 @@ function cycleSource(target) {
 })();
 
   const src = SAT_SOURCES[satMode];
-  document.getElementById('sat-iframe').src             = src.url;
+  //document.getElementById('sat-iframe').src             = src.url;
+  loadSatFrame(src);
   document.getElementById('sat-label-text').textContent = src.label;
-  document.getElementById('satellite').classList.toggle('radar-mode', satMode === 'radar');
-
-  //################################################ --- NEW CONTENT 8.11.26 --- ########################################################
-  document.getElementById('sat-source-toggle').style.display = (satMode === 'satellite') ? 'block' : 'none';
-
-  if (satMode !== 'satellite') {
-    const canvas = document.getElementById('re_canvas');
-    if (canvas) canvas.style.display = 'none';
-    document.getElementById('sat-iframe').style.display = 'block';
-  } else if (satSourceVariant === 'ssec') {
-    showRealEarthWidget();
-  }
-  //################################################ --- NEW CONTENT 8.11.26 --- ########################################################
+  //document.getElementById('satellite').classList.toggle('radar-mode', satMode === 'radar');
+  document.getElementById('satellite').classList.toggle('radar-mode', satMode === 'radar' && !IS_TV);
 
   // The two buttons always show the two sources that are NOT active
   const others = SOURCE_ORDER.filter(s => s !== satMode);
@@ -6497,11 +6473,14 @@ function cycleSource(target) {
         document.getElementById('spc-map-container').style.display = 'flex';
         document.querySelector('#satellite .sat-label').style.left = '8px';
         document.querySelector('#satellite .sat-label').style.top = '4px';
+        document.querySelector('#satellite .sat-label').style.transform = 'none';
         initSPCMap();
       } else if (leavingSPC) {
         document.getElementById('spc-map-container').style.display = 'none';
         document.getElementById('sat-iframe').style.display = 'block';
-        document.querySelector('#satellite .sat-label').style.left = '365px';
+        document.querySelector('#satellite .sat-label').style.left = '50%';
+        document.querySelector('#satellite .sat-label').style.transform = 'translateX(-50%)';
+        //document.querySelector('#satellite .sat-label').style.left = '365px';
       }
   }
 
@@ -7452,9 +7431,6 @@ fetchWxStories();
 loadSounding();
 if (satMode !== 'satellite') cycleSource(satMode);
 
-//################################################# --- NEW CONTENT 8.11.26 --- #########################################################
-document.getElementById('sat-source-toggle').style.display = (satMode === 'satellite') ? 'block' : 'none';
-//################################################# --- NEW CONTENT 8.11.26 --- #########################################################
 
 if (navigator.geolocation) {
   navigator.geolocation.getCurrentPosition(
@@ -7497,23 +7473,32 @@ setInterval(() => {location.reload(true);}, 1 * 60 * 60 * 1000);
 // satMode is saved in localStorage, so after a reload the dashboard comes back
 // on the same panel (radar stays radar).
 
-const RADAR_RECYCLE_MIN = 15;   // recycle radar/map iframe this often (minutes)
-const OTHER_RECYCLE_MIN = 45;   // recycle satellite/meso/fronts iframe (minutes)
-const PAGE_RELOAD_MIN   = 55;   // full page reload (minutes) - same as your old script
+//const RADAR_RECYCLE_MIN = 15;   // recycle radar/map iframe this often (minutes)
+//const OTHER_RECYCLE_MIN = 45;   // recycle satellite/meso/fronts iframe (minutes)
+//const PAGE_RELOAD_MIN   = 55;   // full page reload (minutes) - same as your old script
+
+const RADAR_RECYCLE_MIN = IS_TV ? 30  : 5;   // GIF reloads every 5 min to stay current
+const OTHER_RECYCLE_MIN = IS_TV ? 30 : 45;
+const PAGE_RELOAD_MIN   = IS_TV ? 30 : 55;
 
 // 1. Recycle the map iframe. Loads the EXACT url for the current mode, untouched.
 function recycleSatFrame() {
   const satFrame = document.getElementById('sat-iframe');
   if (!satFrame) return;
   if (satMode === 'spc') return;
-  if (satMode === 'satellite' && satSourceVariant === 'ssec') return;
   if (satFrame.style.display === 'none') return;
 
-  const url = SAT_SOURCES[satMode] && SAT_SOURCES[satMode].url;
-  if (!url) return;
+  //const url = SAT_SOURCES[satMode] && SAT_SOURCES[satMode].url;
+  //if (!url) return;
 
+  //satFrame.src = 'about:blank';               // free the old page's memory first
+  //setTimeout(() => { satFrame.src = url; }, 1500);
+  const src = SAT_SOURCES[satMode];
+  if (!src || (!src.url && !src.srcdoc)) return;
+
+  satFrame.removeAttribute('srcdoc');
   satFrame.src = 'about:blank';               // free the old page's memory first
-  setTimeout(() => { satFrame.src = url; }, 1500);
+  setTimeout(() => { loadSatFrame(src); }, 1500);
 }
 setInterval(() => { if (satMode === 'radar') recycleSatFrame(); }, RADAR_RECYCLE_MIN * 60 * 1000);
 setInterval(() => { if (satMode !== 'radar') recycleSatFrame(); }, OTHER_RECYCLE_MIN * 60 * 1000);
@@ -7533,6 +7518,79 @@ const PAGE_START = Date.now();
 setInterval(() => {
   if (Date.now() - PAGE_START > (PAGE_RELOAD_MIN + 10) * 60 * 1000) safeReload();
 }, 60 * 1000);
+
+
+//if (IS_TV && window.location.search.includes('debug=1')) {
+if (DEBUG_ON) {
+  const dbg = document.createElement('div');
+  dbg.style.cssText = 'position:fixed;bottom:2px;left:2px;z-index:99999;font:11px monospace;color:#0f0;background:rgba(0,0,0,.7);padding:2px 6px;pointer-events:none';
+  document.body.appendChild(dbg);
+  // --- frame-rate + long-task monitor (debug only) ---
+  let dbgFrames = 0, dbgWorst = 0, dbgLast = performance.now(), dbgLongTasks = 0, dbgTick = performance.now();
+  (function frameLoop(t) {
+    dbgFrames++;
+    const gap = t - dbgLast;
+    if (gap > dbgWorst) dbgWorst = gap;
+    dbgLast = t;
+    requestAnimationFrame(frameLoop);
+  })(performance.now());
+  try {
+    new PerformanceObserver(list => { dbgLongTasks += list.getEntries().length; })
+      .observe({ entryTypes: ['longtask'] });
+  } catch (e) {}   // browsers without long-task support just show 0
+
+  setInterval(() => {
+    // Heap (colored by level)
+    let heapHtml = 'no heap API';
+    if (performance.memory) {
+      const mb = Math.round(performance.memory.usedJSHeapSize / 1048576);
+      const col = mb < 70 ? '#0f0' : mb < 100 ? '#ff0' : mb < 130 ? '#ffa500' : '#f33';
+      heapHtml = '<span style="color:' + col + ';font-weight:bold">' + mb + 'MB heap</span>';
+    }
+
+    // Frame stats for the last interval, then reset
+    const now = performance.now();
+    const fps = Math.round(dbgFrames * 1000 / (now - dbgTick));
+    const worst = Math.round(dbgWorst);
+    const longTasks = dbgLongTasks;
+    dbgFrames = 0; dbgWorst = 0; dbgLongTasks = 0; dbgTick = now;
+    const fpsCol = fps >= 50 ? '#0f0' : fps >= 30 ? '#ff0' : '#f33';
+    const frameHtml = '<span style="color:' + fpsCol + ';font-weight:bold">' + fps + 'fps</span>' +
+      ' (worst ' + worst + 'ms) | LT ' + longTasks;
+
+    const modeHtml = '<span style="color:#4fc3f7;font-weight:bold">' + (IS_TV ? 'TV' : 'NORMAL') + '</span>';
+
+    dbg.innerHTML = modeHtml + ' | ' + innerWidth + 'x' + innerHeight + ' @' + devicePixelRatio + 'x | ' + heapHtml +
+      ' | ' + frameHtml +
+      ' | up ' + Math.round((Date.now() - PAGE_START) / 60000) + 'm | ' + satMode;
+  }, 5000);
+}
+
+// Hidden debug toggle: triple-click the clock to turn debug on/off (saved, then reloads)
+const clockEl = document.getElementById('clock');
+if (clockEl) {
+  clockEl.style.userSelect = 'none';
+  clockEl.addEventListener('click', e => {
+    if (e.detail < 3) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('debug');
+    localStorage.setItem('debug', DEBUG_ON ? '0' : '1');
+    window.location.replace(url.toString());
+  });
+}
+
+// Hidden TV-mode toggle: triple-click the city name to switch TV mode on/off (saved, then reloads)
+const cityEl = document.querySelector('.city');
+if (cityEl) {
+  cityEl.style.userSelect = 'none';
+  cityEl.addEventListener('click', e => {
+    if (e.detail < 3) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('device');
+    localStorage.setItem('tv', IS_TV ? '0' : '1');
+    window.location.replace(url.toString());
+  });
+}
 
 
 </script>
