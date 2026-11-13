@@ -751,6 +751,11 @@
     background: rgba(58,160,255,0.1);
   }
 
+  /* Expanded sounding: larger header text and parcel buttons */
+  #sounding.snd-big .section-title { font-size: 20px; letter-spacing: 3px; }
+  #sounding.snd-big #sounding-station { font-size: 15px; }
+  #sounding.snd-big #parcel-controls button { font-size: 11px; width: 26px; height: 26px; }
+
   /* BOTTOM BAR */
   #bottombar {
     grid-column: 1 / -1;
@@ -1272,6 +1277,11 @@
 
 <!-- UPPER AIR SOUNDING -->
 <div class="panel" id="sounding" style="position: relative;">
+  <!-- invisible double-click strip along the top edge: expands/collapses this panel -->
+  <div id="snd-edge"   class="snd-hit" style="position:absolute;top:0;left:0;right:0;height:8px;z-index:150;cursor:pointer;"></div>
+  <div id="snd-edge-l" class="snd-hit" style="position:absolute;top:8px;bottom:0;left:0;width:8px;z-index:150;cursor:pointer;"></div>
+  <div id="snd-edge-r" class="snd-hit" style="position:absolute;top:8px;bottom:0;right:0;width:8px;z-index:150;cursor:pointer;"></div>
+  <div id="snd-edge-b" class="snd-hit" style="position:absolute;left:8px;right:8px;bottom:0;height:8px;z-index:150;cursor:pointer;"></div>
   
   <div id="sounding-selector-modal" style="display: none; position: absolute; inset: 0; background: rgba(11, 15, 20, 0.96) !important; z-index: 100; padding: 6px; flex-direction: column; gap: 6px; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
     <div style="display: flex; justify-content: space-between; align-items: center; width: 90%; max-width: 340px;">
@@ -2313,7 +2323,7 @@ function toggleForecastExpand(card) {
         //setForecastIcon(card, true);                        // start after the panel has opened
         //window._iconFreezeT = setTimeout(() => setForecastIcon(card, false), 5000);   // play 5 s, then freeze
         playIconOneLoop(card);                              // play exactly one full loop, then freeze
-      }, 700);
+      }, 500);
     }
     
     // Get the full name string (e.g. "TUESDAY")
@@ -3325,6 +3335,121 @@ function collapseStory(instant) {
 
 document.getElementById('story-img-wrap').addEventListener('dblclick', toggleStoryExpand);
 
+// ---- SOUNDING PANEL: double-click the top edge to expand / collapse (anchored lower-left, grows up and right) ----
+//const SND_W_FRAC = 0.45;   // expanded width  as a fraction of the screen width  (tune this)
+const SND_LINE_SCALE = 1.5;   // line thickness multiplier for temp / dew / frost / parcel when expanded
+const SND_H_FRAC = 0.75;   // expanded height as a fraction of the screen height (tune this)
+const SND_ASPECT    = 109 / 116;   // chart width / chart height (the SPC shape)
+const SND_HEADER_PX = 32;          // the strip above the chart inside the panel ---- originally 32
+const HODO_SIZE_EXPANDED = 170;   // hodograph size in px when the sounding is expanded (normal size is 120)
+let sndExpanded = false, sndBusy = false, sndPlaceholder = null, sndCss = '';
+
+/*function hideSounding() {
+  const el = document.getElementById('skewt');
+  if (el) el.style.clipPath = 'inset(100% 0 0 0)';   // fully hidden until the wipe reveals it
+}*/
+
+let sndFade = null;
+function hideSounding() {
+  const el = document.getElementById('skewt');
+  if (!el) return;
+  if (sndFade) sndFade.cancel();
+  sndFade = el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: 'ease-in', fill: 'forwards' });
+  sndFade.onfinish = () => {
+    el.style.clipPath = 'inset(100% 0 0 0)';   // stay hidden once the fade is done
+    sndFade.cancel(); sndFade = null;
+  };
+}
+
+function wipeSounding() {
+  const el = document.getElementById('skewt');
+  if (!el) return;
+  el.animate(
+    [{ clipPath: 'inset(100% 0 0 0)' }, { clipPath: 'inset(0 0 0 0)' }],   // reveals from the bottom up
+    { duration: 450, easing: 'ease-out' }
+  );
+}
+
+function refitSounding() {
+  const el = document.getElementById('skewt');
+  if (el) el.style.clipPath = 'inset(100% 0 0 0)';             // hide the chart while it redraws
+  const reveal = () => { if (sndFade) { sndFade.cancel(); sndFade = null; } if (el) { el.style.clipPath = ''; wipeSounding(); } };
+  if (typeof Plotly === 'undefined') { reveal(); return; }
+  try {
+    Promise.resolve(Plotly.Plots.resize('skewt')).catch(() => {}).then(() => {
+      if (currentSoundingData) plotSkewT(currentSoundingData);
+      setTimeout(reveal, 10);                                  // after the hodograph/omega overlays are drawn
+    });
+  } catch (e) { reveal(); }
+}
+
+function toggleSoundingExpand() {
+  if (sndBusy) return;
+  if (sndExpanded) collapseSounding(); else expandSounding();
+}
+
+function expandSounding() {
+  const panel = document.getElementById('sounding');
+  const modal = document.getElementById('sounding-selector-modal');
+  if (!panel || (modal && modal.style.display !== 'none')) return;   // not while the station picker is open
+
+  const r = panel.getBoundingClientRect();
+  sndCss = panel.style.cssText;
+  sndExpanded = true;
+  sndBusy = true;
+
+  // Placeholder holds the panel's grid cell so nothing else shifts
+  sndPlaceholder = document.createElement('div');
+  sndPlaceholder.style.cssText = 'grid-column:1;grid-row:4 / 6;';
+  panel.parentNode.insertBefore(sndPlaceholder, panel);
+
+  //const w = Math.round(Math.min(window.innerWidth * SND_W_FRAC, window.innerWidth - r.left - 8));
+  //const h = Math.round(Math.min(window.innerHeight * SND_H_FRAC, r.bottom - 8));
+  const h = Math.round(Math.min(window.innerHeight * SND_H_FRAC, r.bottom - 8));
+  const w = Math.round(Math.min((h - SND_HEADER_PX) * SND_ASPECT, window.innerWidth - r.left - 8));
+
+  // Pin the lower-left corner, grow up and to the right
+  Object.assign(panel.style, {
+    position: 'fixed', left: r.left + 'px', bottom: (window.innerHeight - r.bottom) + 'px',
+    top: 'auto', right: 'auto', width: w + 'px', height: h + 'px', zIndex: '5000'
+  });
+
+  hideSounding();
+  panel.animate(
+    [{ width: r.width + 'px', height: r.height + 'px' }, { width: w + 'px', height: h + 'px' }],
+    { duration: 300, easing: 'ease-out' }
+  ).onfinish = () => { sndBusy = false; panel.classList.add('snd-big'); refitSounding(); };
+}
+
+function collapseSounding() {
+  const panel = document.getElementById('sounding');
+  if (!sndExpanded || !panel || !sndPlaceholder) return;
+  const ph = sndPlaceholder.getBoundingClientRect();
+  sndBusy = true;
+  hideSounding();
+  panel.classList.remove('snd-big');   // back to normal header sizes before shrinking
+  const anim = panel.animate(
+    [{ width: panel.offsetWidth + 'px', height: panel.offsetHeight + 'px' }, { width: ph.width + 'px', height: ph.height + 'px' }],
+    { duration: 250, easing: 'ease-in', fill: 'forwards' }
+  );
+  anim.onfinish = () => {
+    anim.cancel();                       // release the held end-frame
+    panel.style.cssText = sndCss;
+    sndPlaceholder.remove(); sndPlaceholder = null;
+    sndExpanded = false; sndBusy = false;
+    refitSounding();
+  };
+}
+
+document.querySelectorAll('.snd-hit').forEach(el => el.addEventListener('dblclick', toggleSoundingExpand));
+
+// Also accept a double-click on the empty parts of the header (not the title, station label or buttons)
+document.querySelector('#sounding .snd-header').addEventListener('dblclick', e => {
+  if (e.target === e.currentTarget) toggleSoundingExpand();
+});
+
+
+
 function getSPCTime() {
   const hour = new Date().getUTCHours() >= 12 ? "12" : "00";
   return `${soundingDateStr(hour)}${hour}`;
@@ -4020,6 +4145,7 @@ function computeSevereParams(data, parcelResult, CAPE, CIN) {
 }
 
 function plotSkewT(data) {
+  const lineK = sndExpanded ? SND_LINE_SCALE : 1;
   const pressure = data.map(d => d.pres ?? NaN); // hPa
   const temp = data.map(d => d.temp ?? NaN);     // °C
   const dew = data.map(d => d.dew ?? NaN);       // °C
@@ -4264,7 +4390,8 @@ function plotSkewT(data) {
     x: skewTemp,
     y: pressure,
     mode: 'lines',
-    line: { color: 'red' },
+    //line: { color: 'red' },
+    line: { color: 'red', width: 2 * lineK },
     name: 'Temperature'
   };
 
@@ -4272,7 +4399,8 @@ function plotSkewT(data) {
     x: skewDew,
     y: pressure,
     mode: 'lines',
-    line: { color: 'green' },
+    //line: { color: 'green' },
+    line: { color: 'green', width: 2 * lineK },
     name: 'Dewpoint'
   };
 
@@ -4286,7 +4414,7 @@ function plotSkewT(data) {
     x: frostSkew,
     y: frostPres,
     mode: 'lines',
-    line: { color: 'rgba(100,220,255,0.75)', width: 1.5, dash: 'dot' },
+    line: { color: 'rgba(100,220,255,0.75)', width: 1.5 * lineK, dash: 'dot' },
     name: 'Frost Point'
   } : null;
 
@@ -4581,8 +4709,10 @@ function plotSkewT(data) {
       capeEl.id = 'cape-readout';
       document.getElementById('skewt').appendChild(capeEl);
     }
+    // position: absolute; top: 130px; right: 8px; z-index: 20;
     capeEl.style.cssText = `
-      position: absolute; top: 130px; right: 8px; z-index: 20;
+      position: absolute; top: ${(sndExpanded ? HODO_SIZE_EXPANDED : 120) + 10}px; right: 8px; z-index: 20;
+      transform: scale(${sndExpanded ? 1.3 : 1}); transform-origin: top right;
       font-family: 'IBM Plex Mono', monospace; font-size: 11px;
       text-align: right; pointer-events: none; line-height: 1.6;
     `;
@@ -4602,7 +4732,7 @@ function plotSkewT(data) {
         x: parcelSkew,
         y: parcelPres,
         mode: 'lines',
-        line: { color: 'yellow', width: 1.5, dash: 'dot' },
+        line: { color: 'yellow', width: 1.5 * lineK, dash: 'dot' },
         name: activeParcelType === 'SB' ? 'SB Parcel' : (activeParcelType === 'WX' ? 'SB_Wx Parcel' : 'ML Parcel')
       };
 
@@ -5504,7 +5634,8 @@ function drawHodograph(data) {
   const existing = document.getElementById('hodograph-overlay');
   if (existing) existing.remove();
 
-  const size   = 120;
+  //const size   = 120;
+  const size   = sndExpanded ? HODO_SIZE_EXPANDED : 120;
   const pad    = 10;
   const cx     = size / 2;
   const cy     = size / 2;
@@ -5608,7 +5739,8 @@ function drawHodograph(data) {
     lbl.setAttribute('x',           (toSvgX(0) + r + 2).toFixed(1));
     lbl.setAttribute('y',           (toSvgY(0) + 4).toFixed(1));
     lbl.setAttribute('fill',        'rgba(255,255,255,0.4)');
-    lbl.setAttribute('font-size',   '7');
+    //lbl.setAttribute('font-size',   '7');
+    lbl.setAttribute('font-size',   String(7 * size / 120));
     lbl.setAttribute('font-family', 'IBM Plex Mono, monospace');
     //lbl.textContent = Math.round(spd) + 'kt';
     lbl.textContent = Math.round(spd);
@@ -5641,7 +5773,8 @@ function drawHodograph(data) {
     seg.setAttribute('x2',             toSvgX(uv1.u).toFixed(1));
     seg.setAttribute('y2',             toSvgY(uv1.v).toFixed(1));
     seg.setAttribute('stroke',         layerColor(km));
-    seg.setAttribute('stroke-width',   '2');
+    //seg.setAttribute('stroke-width',   '2');
+    seg.setAttribute('stroke-width',   String(2 * size / 120));
     seg.setAttribute('stroke-linecap', 'round');
     svg.appendChild(seg);
   }
@@ -5651,7 +5784,8 @@ function drawHodograph(data) {
     const dot = document.createElementNS(ns, 'circle');
     dot.setAttribute('cx',   toSvgX(uvPoints[0].u).toFixed(1));
     dot.setAttribute('cy',   toSvgY(uvPoints[0].v).toFixed(1));
-    dot.setAttribute('r',    '3');
+    //dot.setAttribute('r',    '3');
+    dot.setAttribute('r',    String(3 * size / 120));
     dot.setAttribute('fill', '#ff4444');
     svg.appendChild(dot);
   }
@@ -5778,6 +5912,13 @@ function drawOmegaPanel(data, cape) {
 //     some 12z launches, so prefer ILX during that window as a cross-check.
 //   - Within each branch: try primary station first, fall back to secondary
 //     if the fetch fails or returns empty/error data.
+
+// True from 23:30 UTC until midnight: the upcoming 00z sounding (dated tomorrow) should be posted
+/*function isNext00z() {
+  const d = new Date();
+  return d.getUTCHours() === 23 && d.getUTCMinutes() >= 30;   // change 30 to start earlier/later
+}*/
+
 async function fetchSPCSoundingFor(station, overrideHour, overrideDate) {
   // Guard check: do not fetch observed SPC soundings if model mode is active
   if (isModelSoundingActive) {
@@ -5800,9 +5941,16 @@ async function fetchSPCSoundingFor(station, overrideHour, overrideDate) {
 
   let hour;
   if (overrideHour !== undefined) hour = overrideHour;
+  //else if (isNext00z()) hour = '00';
   else if (utcH >= 18) hour = '18';
   else if (utcH >= 12) hour = '12';
   else hour = '00';
+
+  /*/ Upcoming 00z is dated with tomorrow's UTC date
+  if (!overrideDate && overrideHour === undefined && isNext00z()) {
+    const tmrw = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    datePart = tmrw.toISOString().slice(2, 10).replace(/-/g, '');
+  }*/
 
   // If the launch hour hasn't happened yet today (UTC), it must be yesterday's sounding
   if (!overrideDate && Number(hour) > utcH) {
@@ -5813,8 +5961,9 @@ async function fetchSPCSoundingFor(station, overrideHour, overrideDate) {
   // Use the datePart and hour for the URL
   const url = `https://www.spc.noaa.gov/exper/soundings/${datePart}${hour}_OBS/${station}.txt`;
   
-  //console.log('Fetching:', url);
-  const res = await fetch(url);
+  console.log('Fetching:', url);
+  //const res = await fetch(url);
+  const res = await fetch(url, { cache: 'no-store' });
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${station}`);
   const text = await res.text();
   
@@ -5865,6 +6014,7 @@ async function loadSounding() {
         result = await tryStations('DVN', 'ILX', '12', undefined);
       } else {
         if (new Date().getUTCHours() >= 18 && !severeDayActive()) {
+        //if (new Date().getUTCHours() >= 18 && !isNext00z() && !severeDayActive()) {
           // Quiet day: 18z soundings aren't normally launched, so go straight to 12z
           result = await fetchSPCSoundingFor('DVN', '12', undefined);
         } else {
@@ -7564,6 +7714,16 @@ if (DEBUG_ON) {
       ' | ' + frameHtml +
       ' | up ' + Math.round((Date.now() - PAGE_START) / 60000) + 'm | ' + satMode;
   }, 5000);
+  /*  setInterval(() => {
+    let heapHtml = 'no heap API';
+    if (performance.memory) {
+      const mb = Math.round(performance.memory.usedJSHeapSize / 1048576);
+      const col = mb < 70 ? '#0f0' : mb < 100 ? '#ff0' : mb < 130 ? '#ffa500' : '#f33';
+      heapHtml = '<span style="color:' + col + ';font-weight:bold">' + mb + 'MB heap</span>';
+    }
+    dbg.innerHTML = innerWidth + 'x' + innerHeight + ' @' + devicePixelRatio + 'x | ' + heapHtml +
+      ' | up ' + Math.round((Date.now() - PAGE_START) / 60000) + 'm | ' + satMode;
+  }, 5000);*/
 }
 
 // Hidden debug toggle: triple-click the clock to turn debug on/off (saved, then reloads)
