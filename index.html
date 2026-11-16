@@ -7724,8 +7724,8 @@ setInterval(() => {location.reload(true);}, 1 * 60 * 60 * 1000);
 //const OTHER_RECYCLE_MIN = 45;   // recycle satellite/meso/fronts iframe (minutes)
 //const PAGE_RELOAD_MIN   = 55;   // full page reload (minutes) - same as your old script
 
-const RADAR_RECYCLE_MIN = IS_TV ? 120 : 30;   // recycle radar/map iframe this often (minutes)
-const OTHER_RECYCLE_MIN = IS_TV ? 120 : 45;   // recycle satellite/meso/fronts iframe (minutes)
+const RADAR_RECYCLE_MIN = IS_TV ? 45 : 30;   // recycle radar/map iframe this often (minutes)
+const OTHER_RECYCLE_MIN = IS_TV ? 30 : 45;   // recycle satellite/meso/fronts iframe (minutes)
 const PAGE_RELOAD_MIN   = IS_TV ? 120 : 55;   // full page reload (minutes)
 
 // 1. Recycle the map iframe. Loads the EXACT url for the current mode, untouched.
