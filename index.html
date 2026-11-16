@@ -15,6 +15,7 @@
 
 <!--script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script-->
 <script src="https://cdn.plot.ly/plotly-cartesian-2.30.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/suncalc@1.9.0/suncalc.js"></script>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -1255,14 +1256,8 @@
     <div id="story-dots" style="display:flex;justify-content:center;gap:5px;padding:4px 0;flex-shrink:0;"></div>
   </div>
   <!-- Sun row always visible at bottom -->
-  <div class="sun-row" id="sun-row-fixed" style="flex-shrink:0;margin-top:auto;flex-direction:column;padding:6px 12px 8px;">
-    <div style="display:flex;justify-content:space-between;align-items:flex-end;width:100%;">
-      <div class="sun-item"><div class="label">☀ Sunrise</div><div class="val" id="sunrise-val">--</div></div>
-      <div style="flex:1;display:flex;justify-content:center;align-items:flex-end;padding-bottom:2px;">
-        <canvas id="sun-arc" width="100" height="44" style="display:block;"></canvas>
-      </div>
-      <div class="sun-item"><div class="label">🌙 Sunset</div><div class="val" id="sunset-val">--</div></div>
-    </div>
+  <div class="sun-row" id="sun-row-fixed" style="flex-shrink:0;margin-top:auto;padding:2px 4px 4px;">
+    <svg id="sunmoon-svg" viewBox="0 0 280 112" width="100%" style="display:block;"></svg>
   </div>
 </div>
 
@@ -1610,9 +1605,10 @@ function initWithLocation(lat, lon) {
 
 let showClouds = true;
 
-//const TEST_NOW = new Date('2026-03-20T18:27:00'); // SET TO e.g. new Date('2026-03-20T14:00:00') to test, null = live
+//const TEST_NOW = new Date('2026-11-29T10:53:00'); // SET TO e.g. new Date('2026-03-20T14:00:00') to test, null = live
 const TEST_NOW = null;
 function getNow() { return TEST_NOW ? new Date(TEST_NOW) : new Date(); }
+
 
 let currentSoundingData = null;
 
@@ -1646,6 +1642,7 @@ function updateClock() {
   const now = new Date();
   const p = n => String(n).padStart(2,'0');
 
+  //console.log (now);
   // Local 12hr
   let h12 = now.getHours();
   const ampm = h12 >= 12 ? 'PM' : 'AM';
@@ -2586,12 +2583,6 @@ function maybeScrollAlerts() {
 }
 
 let activeAlertTicker = '';
-let sunriseDate  = null;
-let sunsetDate   = null;
-let moonriseDate = null;
-let moonsetDate  = null;
-let moonPhase    = 0; // 0–1 illumination fraction
-let moonWaxing  = true; // true = waxing, false = waning
 let sunArcTimer  = null;
 
 function updateTicker() {
@@ -2618,244 +2609,182 @@ function updateTicker() {
   }
 }
 
+// ================= SUN & MOON ELEVATION CHART (SunCalc) =================
+const SM_W = 280, SM_H = 112;                       // SVG viewBox size (make SM_H bigger for a taller chart)
+const SM_PAD = { l: 0, r: 0, t: 20, b: 14 };        // plot margins inside the viewBox
+//const SM_HORIZON = 0.5;   // where 0° sits, as a fraction of plot height from the top (0.5 = dead center) ← Uncomment this to set the horizon to be fixed
+const SM_SUN_COLOR  = '#ffb020';
+const SM_MOON_COLOR = '#9bb0ff';
+
+function smPhaseName(p) {
+  if (p < 0.03 || p >= 0.97) return 'New Moon';
+  if (p < 0.22) return 'Waxing Crescent';
+  if (p < 0.28) return 'First Quarter';
+  if (p < 0.47) return 'Waxing Gibbous';
+  if (p < 0.53) return 'Full Moon';
+  if (p < 0.72) return 'Waning Gibbous';
+  if (p < 0.78) return 'Last Quarter';
+  return 'Waning Crescent';
+}
+
+// Moon disc drawn as an SVG group centred on (0,0) with radius r.
+// phase: 0 new, .25 first qtr, .5 full, .75 last qtr.  tiltDeg: rotation so the lit limb faces the sun.
+function smMoonDisc(r, phase, tiltDeg) {
+  const waxing = phase < 0.5;
+  const rx = r * Math.abs(Math.cos(2 * Math.PI * phase));
+  const limbSweep = waxing ? 1 : 0;
+  const termSweep = waxing ? (phase < 0.25 ? 0 : 1) : (phase > 0.75 ? 1 : 0);
+  const lit = `M0,${-r} A${r},${r} 0 0 ${limbSweep} 0,${r} A${rx.toFixed(2)},${r} 0 0 ${termSweep} 0,${-r} Z`;
+  return `<g transform="rotate(${tiltDeg.toFixed(1)})">
+    <circle r="${r}" fill="#1b2538"/>
+    <path d="${lit}" fill="#e6ecff"/>
+    <circle r="${r}" fill="none" stroke="rgba(180,200,230,0.7)" stroke-width="0.7"/></g>`;
+}
+
+let smLoadTries = 0, smLoading = false;
+// If SunCalc failed to load, re-inject the script (alternating CDNs). drawSunArc runs every minute, so this retries about once a minute.
+function smEnsureSunCalc() {
+  if (typeof SunCalc !== 'undefined') return true;
+  if (!smLoading && smLoadTries < 10) {
+    smLoadTries++;
+    smLoading = true;
+    const s = document.createElement('script');
+    s.src = (smLoadTries % 2 ? 'https://unpkg.com/suncalc@1.9.0/suncalc.js' : 'https://cdn.jsdelivr.net/npm/suncalc@1.9.0/suncalc.js') + '?retry=' + smLoadTries;
+    s.onload  = () => { smLoading = false; drawSunArc(); };
+    s.onerror = () => { smLoading = false; s.remove(); };
+    document.head.appendChild(s);
+  }
+  return false;
+}
+
 function drawSunArc() {
-  const canvas = document.getElementById('sun-arc');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const W = canvas.width, H = canvas.height;
-  ctx.clearRect(0, 0, W, H);
+  const el = document.getElementById('sunmoon-svg');
+  //if (!el || typeof SunCalc === 'undefined') return;
+  if (!el || !smEnsureSunCalc()) return;
 
-  //const now = new Date();
-  //const now = new Date('2026-03-30T16:23:00'); // TEST — remove when done
-  const now = getNow();
-  const cx  = W / 2, cy = H - 2;
-  const rx  = W / 2 - 4;
-  const ry  = H - 6;
+  const now  = getNow();
+  const d0   = new Date(now.getFullYear(), now.getMonth(), now.getDate());       // local midnight
+  const d1   = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);   // next local midnight
+  const dayMs = d1 - d0;
+  const DEG  = 180 / Math.PI;
+  const SIN  = a => Math.sin(a / DEG);        // plot sin(altitude) so arcs are smooth sine waves
+  const N    = 144;                                                              // 10-minute samples
+  //const N    = 288;                                                              // 5-minute samples
 
-  const isSunUp  = sunriseDate  && sunsetDate   && now >= sunriseDate  && now <= sunsetDate;
-  const isMoonUp = moonriseDate && moonsetDate  && now >= moonriseDate && now <= moonsetDate;
+  // +0.833 / -0.133 shift each curve so it crosses 0° exactly at the official rise/set times
+  const sunAlt  = t => SunCalc.getPosition(t, LAT, LON).altitude * DEG + 0.833;
+  const moonAlt = t => SunCalc.getMoonPosition(t, LAT, LON).altitude * DEG - 0.133;
 
+  const sunPts = [], moonPts = [];
+  let lo = 0, hi = 0;
+  for (let i = 0; i <= N; i++) {
+    const t = new Date(d0.getTime() + dayMs * i / N);
+    const s = sunAlt(t), m = moonAlt(t);
+    sunPts.push(s); moonPts.push(m);
+    lo = Math.min(lo, s, m); hi = Math.max(hi, s, m);
+  }
+  hi = Math.max(30, Math.ceil(hi / 5) * 5 + 5);
+  lo = Math.min(-20, Math.floor(lo / 5) * 5 - 5);
+  hi = SIN(Math.min(hi, 90)); lo = SIN(Math.max(lo, -90));      // convert the axis range to sin units
+  //lo = -hi * (1 - SM_HORIZON) / SM_HORIZON;       // puts 0° at SM_HORIZON of the plot height  <--- Uncomment this to set the horizon to be fixed
 
-  // ---- Arc line ----
-  ctx.beginPath();
-  ctx.ellipse(cx, cy, rx, ry, 0, Math.PI, 0, false);
-  ctx.strokeStyle = isSunUp ? 'rgba(255,200,60,0.35)' : 'rgba(100,140,180,0.25)';
-  ctx.lineWidth   = 1.5;
-  if (!isSunUp) ctx.setLineDash([3, 4]);
-  ctx.stroke();
-  ctx.setLineDash([]);
+  const pl = SM_PAD.l, pr = SM_W - SM_PAD.r, pt = SM_PAD.t, pb = SM_H - SM_PAD.b;
+  const fx = t => pl + ((t - d0) / dayMs) * (pr - pl);
+  //const fy = a => pt + (hi - a) / (hi - lo) * (pb - pt);
+  const fy = a => pt + (hi - SIN(a)) / (hi - lo) * (pb - pt);
+  const hy = fy(0);                                                              // horizon y
 
-  // ---- Horizon line ----
-  ctx.beginPath();
-  ctx.moveTo(cx - rx - 2, cy);
-  ctx.lineTo(cx + rx + 2, cy);
-  ctx.strokeStyle = 'rgba(100,140,180,0.2)';
-  ctx.lineWidth   = 1;
-  ctx.stroke();
+  const path = pts => pts.map((a, i) =>
+    (i ? 'L' : 'M') + (pl + (pr - pl) * i / N).toFixed(1) + ',' + fy(a).toFixed(1)).join('');
+  const clampPill = (x, w) => Math.max(1, Math.min(SM_W - w - 1, x - w / 2));
+  const fmt = d => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
-  // ---- Sun dot ----
-  if (sunriseDate && sunsetDate) {
-    const total    = sunsetDate - sunriseDate;
-    const elapsed  = now - sunriseDate;
-    const progress = Math.max(0, Math.min(1, elapsed / total));
-    const angle    = Math.PI - progress * Math.PI;
-    const sx = cx + rx * Math.cos(angle);
-    const sy = cy - ry * Math.sin(angle);
+  let g = '';
 
-    if (isSunUp) {
-      // Glow
-      const grd = ctx.createRadialGradient(sx, sy, 1, sx, sy, 7);
-      grd.addColorStop(0, 'rgba(255,210,60,0.5)');
-      grd.addColorStop(1, 'rgba(255,210,60,0)');
-      ctx.beginPath();
-      ctx.arc(sx, sy, 7, 0, Math.PI * 2);
-      ctx.fillStyle = grd;
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.arc(sx, sy, 4, 0, Math.PI * 2);
-      ctx.fillStyle = '#ffd43b';
-      ctx.fill();
-    } else {
-      // Sun below horizon — small dim dot at rise or set edge
-      ctx.beginPath();
-      ctx.arc(sx, sy, 3, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,210,60,0.25)';
-      ctx.fill();
+  // night shading (sun below horizon)
+  let start = null;
+  for (let i = 0; i <= N + 1; i++) {
+    const below = i <= N && sunPts[i] < 0;
+    const x = pl + (pr - pl) * i / N;
+    if (below && start === null) start = x;
+    if (!below && start !== null) {
+      g += `<rect x="${start.toFixed(1)}" y="${pt}" width="${Math.max(0, x - start).toFixed(1)}" height="${(pb - pt).toFixed(1)}" fill="rgba(0,0,0,0.28)"/>`;
+      start = null;
     }
   }
 
-  // ---- Moon dot ----
-  if (moonriseDate && moonsetDate) {
-    const mTotal    = moonsetDate  - moonriseDate;
-    const mElapsed  = now - moonriseDate;
-    const mProgress = Math.max(0, Math.min(1, mElapsed / mTotal));
-    const mAngle    = Math.PI - mProgress * Math.PI;
-    const mx = cx + rx * Math.cos(mAngle);
-    const my = cy - ry * Math.sin(mAngle);
+  // grid: 6-hour verticals + horizon
+  const ticks = ['12A', '6A', '12P', '6P', '12A'];
+  ticks.forEach((lab, i) => {
+    const x = pl + (pr - pl) * i / 4;
+    g += `<line x1="${x}" y1="${pt}" x2="${x}" y2="${pb}" stroke="rgba(100,140,180,0.12)"/>`;
+    const anchor = i === 0 ? 'start' : i === 4 ? 'end' : 'middle';
+    g += `<text x="${x}" y="${SM_H - 3}" text-anchor="${anchor}" font-size="8" fill="#6a8099" font-family="IBM Plex Mono,monospace">${lab}</text>`;
+  });
+  //g += `<line x1="${pl}" y1="${hy}" x2="${pr}" y2="${hy}" stroke="rgba(140,170,200,0.35)"/>`;
+  g += `<line x1="${pl}" y1="${hy}" x2="${pr}" y2="${hy}" stroke="rgba(140,170,200,0.6)" stroke-width="1.5"/>`;
+  //g += `<text x="${pr - 1}" y="${(hy - 2).toFixed(1)}" text-anchor="end" font-size="7" fill="#6a8099" font-family="IBM Plex Mono,monospace">0°</text>`;
+  //g += `<text x="${pr - 1}" y="${(hy - 2).toFixed(1)}" text-anchor="end" font-size="7" fill="#6a8099" font-family="IBM Plex Mono,monospace">Horizon</text>`;
 
-    if (isMoonUp) {
-      const r = 4;
-      const isWaxing = moonWaxing;
-      // Draw moon phase using illumination fraction
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(mx, my, r, 0, Math.PI * 2);
-      ctx.clip(); // clip all drawing to the moon circle
+  // curves: dim full path, bright part above the horizon only
+  g += `<defs><clipPath id="smUp"><rect x="0" y="0" width="${SM_W}" height="${hy.toFixed(1)}"/></clipPath></defs>`; //<--- Comment this Out to set the horizon to be fixed
+  //g += `<defs><clipPath id="smPlot"><rect x="0" y="${pt}" width="${SM_W}" height="${pb - pt}"/></clipPath><clipPath id="smUp"><rect x="0" y="0" width="${SM_W}" height="${hy.toFixed(1)}"/></clipPath></defs>`;
+  //g += '<g clip-path="url(#smPlot)">'; //← & ↑ Uncomment this to set the horizon to be fixed
+  g += `<path d="${path(moonPts)}" fill="none" stroke="${SM_MOON_COLOR}" stroke-width="1.2" stroke-dasharray="3 3" opacity="0.28"/>`;
+  g += `<path d="${path(moonPts)}" fill="none" stroke="${SM_MOON_COLOR}" stroke-width="1.4" stroke-dasharray="3 3" clip-path="url(#smUp)" opacity="0.9"/>`;
+  g += `<path d="${path(sunPts)}" fill="none" stroke="${SM_SUN_COLOR}" stroke-width="1.5" opacity="0.3"/>`;
+  g += `<path d="${path(sunPts)}" fill="none" stroke="${SM_SUN_COLOR}" stroke-width="2.2" clip-path="url(#smUp)"/>`;
+  //g += '</g>'; //← Uncomment this to set the horizon to be fixed
 
-      // Dark side (full circle background)
-      ctx.beginPath();
-      ctx.arc(mx, my, r, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(30,40,60,0.9)';
-      ctx.fill();
+  // sunrise / sunset markers
+  const st = SunCalc.getTimes(new Date(d0.getTime() + dayMs / 2), LAT, LON);
+  [st.sunrise, st.sunset].forEach(t => {
+    if (!(t instanceof Date) || isNaN(t) || t < d0 || t > d1) return;
+    const x = fx(t), w = 46;
+    g += `<line x1="${x.toFixed(1)}" y1="${pt}" x2="${x.toFixed(1)}" y2="${pb}" stroke="${SM_SUN_COLOR}" stroke-opacity="0.45" stroke-dasharray="3 3"/>`;
+    g += `<circle cx="${x.toFixed(1)}" cy="${hy.toFixed(1)}" r="3" fill="${SM_SUN_COLOR}"/>`;
+    const px = clampPill(x, w);
+    g += `<rect x="${px.toFixed(1)}" y="${pb - 17}" width="${w}" height="14" rx="7" fill="#111720" stroke="${SM_SUN_COLOR}" stroke-opacity="0.6"/>`;
+    g += `<text x="${(px + w / 2).toFixed(1)}" y="${pb - 7}" text-anchor="middle" font-size="9" fill="#e8f0f8" font-family="IBM Plex Mono,monospace">${fmt(t)}</text>`;
+  });
 
+  // moonrise / moonset markers (labels sit below the horizon line)
+  const mt = SunCalc.getMoonTimes(d0, LAT, LON);
+  [mt.rise, mt.set].forEach(t => {
+    if (!(t instanceof Date) || isNaN(t) || t < d0 || t > d1) return;
+    //const x = fx(t), w = 44;
+    const x = fx(t);
+    g += `<circle cx="${x.toFixed(1)}" cy="${hy.toFixed(1)}" r="2.6" fill="#111720" stroke="${SM_MOON_COLOR}" stroke-width="1.2"/>`;
+    //g += `<text x="${clampPill(x, w) + w / 2}" y="${(hy + 11).toFixed(1)}" text-anchor="middle" font-size="8" fill="${SM_MOON_COLOR}" font-family="IBM Plex Mono,monospace">${fmt(t)}</text>`;
+  });
 
-      // Waxing: right side lit. Waning: left side lit.
-      // Step 1 — fill the lit semicircle (half rectangle, clipped to circle)
-      ctx.beginPath();
-      ctx.rect(isWaxing ? mx : mx - r, my - r, r, r * 2);
-      ctx.fillStyle = 'rgba(220,230,255,0.9)';
-      ctx.fill();
+  // "now" line + sun and moon icons at their current elevation
+  const nx = fx(now);
+  const clampY = y => Math.max(pt + 6, Math.min(pb - 6, y));
+  const sa = sunAlt(now), ma = moonAlt(now);
+  const ill = SunCalc.getMoonIllumination(now);
+  const mpos = SunCalc.getMoonPosition(now, LAT, LON);
+  const waxing = ill.phase < 0.5;
+  const tilt = (mpos.parallacticAngle - ill.angle) * DEG - (waxing ? 90 : -90);
 
-      // Step 2 — draw the terminator ellipse
-      // x-radius of terminator ellipse: r at new/full (phase=0 or 1), 0 at quarter (phase=0.5)
-      const termRx = r * Math.abs(1 - 2 * moonPhase);
+  g += `<line x1="${nx.toFixed(1)}" y1="${pt}" x2="${nx.toFixed(1)}" y2="${pb}" stroke="rgba(232,240,248,0.25)"/>`;
+  const sy = clampY(fy(sa)), my = clampY(fy(ma));
+  g += `<g transform="translate(${nx.toFixed(1)},${sy.toFixed(1)})" opacity="${sa > 0 ? 1 : 0.4}">
+    <circle r="9" fill="rgba(255,200,60,0.22)"/><circle r="4.5" fill="#ffd43b"/></g>`;
+  g += `<g transform="translate(${nx.toFixed(1)},${my.toFixed(1)})" opacity="${ma > 0 ? 1 : 0.45}">${smMoonDisc(6.5, ill.phase, tilt)}</g>`;
 
-      // The ellipse is always centered at mx (the moon centre).
-      // Crescent  (phase < 0.5): dark ellipse eats into the lit half
-      // Gibbous   (phase > 0.5): lit ellipse extends into the dark half
-      // For waxing the lit half is on the right, for waning on the left —
-      // but because we clip to the lit rect first, we only need to know
-      // whether the ellipse should be dark or lit:
-      const termIsDark = moonPhase < 0.5;
-      ctx.beginPath();
-      ctx.ellipse(mx, my, termRx, r, 0, 0, Math.PI * 2);
-      ctx.fillStyle = termIsDark ? 'rgba(30,40,60,0.9)' : 'rgba(220,230,255,0.9)';
-      ctx.fill();
+  // header: title left, phase right
+  g += `<text x="${pl}" y="13" font-size="12" fill="#ffb020" font-family="Bebas Neue,sans-serif" letter-spacing="1.5">SUN &amp; MOON</text>`;
+  g += `<text x="${pr}" y="12" text-anchor="end" font-size="9" fill="${SM_MOON_COLOR}" font-family="IBM Plex Mono,monospace">${smPhaseName(ill.phase)} · ${Math.round(ill.fraction * 100)}%</text>`;
 
-
-      ctx.restore();
-
-      // Outline
-      ctx.beginPath();
-      ctx.arc(mx, my, r, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(180,200,230,0.6)';
-      ctx.lineWidth   = 0.5;
-      ctx.stroke();
-    } else {
-      // Moon below horizon — dim outline only
-      ctx.beginPath();
-      ctx.arc(mx, my, 3, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(180,200,230,0.2)';
-      ctx.lineWidth   = 0.8;
-      ctx.stroke();
-    }
-  }
+  el.setAttribute('viewBox', `0 0 ${SM_W} ${SM_H}`);
+  el.innerHTML = g;
 }
 
-async function fetchMoon() {
-  try {
-    const now = getNow();
-    //const now    = new Date();
-    //const now = new Date('2026-03-30T16:23:00'); // TEST — remove when done
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    function dateStr(d) {
-      const y  = d.getFullYear();
-      const m  = String(d.getMonth() + 1).padStart(2, '0');
-      const dy = String(d.getDate()).padStart(2, '0');
-      return `${y}-${m}-${dy}`;
-    }
-
-    // Fetch today and tomorrow in parallel
-    const [resToday, resTomorrow] = await Promise.all([
-      fetch(`https://aa.usno.navy.mil/api/rstt/oneday?date=${dateStr(now)}&coords=${LAT},${LON}&tz=-6&dst=true`),
-      fetch(`https://aa.usno.navy.mil/api/rstt/oneday?date=${dateStr(tomorrow)}&coords=${LAT},${LON}&tz=-6&dst=true`)
-    ]);
-
-    const dataToday    = (await resToday.json()).properties?.data;
-    const dataTomorrow = (await resTomorrow.json()).properties?.data;
-    if (!dataToday) return;
-
-    const riseEntry = dataToday.moondata?.find(e => e.phen === 'Rise');
-    const setEntry  = dataToday.moondata?.find(e => e.phen === 'Set');
-
-    if (riseEntry?.time) {
-      const [rh, rm] = riseEntry.time.trim().split(' ')[0].split(':').map(Number);
-      moonriseDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), rh, rm);
-    }
-
-    if (setEntry?.time) {
-      const [sh, sm] = setEntry.time.trim().split(' ')[0].split(':').map(Number);
-      moonsetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), sh, sm);
-
-      // If moonset is before moonrise, it falls on the next calendar day
-      // Use tomorrow's actual moonset time from the second API call
-      if (moonriseDate && moonsetDate < moonriseDate) {
-        const tomorrowSetEntry = dataTomorrow?.moondata?.find(e => e.phen === 'Set');
-        if (tomorrowSetEntry?.time) {
-          const [tsh, tsm] = tomorrowSetEntry.time.trim().split(' ')[0].split(':').map(Number);
-          moonsetDate = new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate(), tsh, tsm);
-        } else {
-          // Fallback: just roll today's set time to tomorrow
-          moonsetDate.setDate(moonsetDate.getDate() + 1);
-        }
-      }
-    }
-
-    // fracillum comes back as e.g. "94%" — strip % and convert to 0–1
-    const fracField = dataToday.fracillum;
-    if (fracField != null) {
-      moonPhase = parseFloat(String(fracField).replace('%', '')) / 100;
-    }
-
-    const curPhase = (dataToday.curphase || '').toLowerCase();
-    //moonWaxing = curPhase.includes('waxing') || curPhase === 'full moon';
-    moonWaxing = curPhase.includes('waxing');
-
-  } catch(e) {
-    console.error('Moon fetch error:', e);
-  }
-}
-
-
-async function fetchSun() {
-  try {
-    const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&daily=sunrise,sunset&forecast_days=1&timezone=America%2FChicago`);
-    const data = await res.json();
-
-    //sunriseDate = data.daily?.sunrise?.[0] ? new Date(data.daily.sunrise[0]) : null;
-    //sunsetDate  = data.daily?.sunset?.[0]  ? new Date(data.daily.sunset[0])  : null;
-    // Rebase sunrise/sunset onto the test date
-    //Testing block to ensure the moon/sun data are working correctly 
-    
-    //const testNow = new Date('2026-03-23T14:00:00'); // TEST — remove when done
-    if (data.daily?.sunrise?.[0]) {
-      const s = new Date(data.daily.sunrise[0]);
-      const testNow = getNow();
-      sunriseDate = new Date(testNow.getFullYear(), testNow.getMonth(), testNow.getDate(), s.getHours(), s.getMinutes());
-    }
-    if (data.daily?.sunset?.[0]) {
-      const s = new Date(data.daily.sunset[0]);
-      const testNow = getNow();
-      sunsetDate = new Date(testNow.getFullYear(), testNow.getMonth(), testNow.getDate(), s.getHours(), s.getMinutes());
-    }
-
-    const sunrise = sunriseDate ? sunriseDate.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '--';
-    const sunset  = sunsetDate  ? sunsetDate.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})  : '--';
-    document.getElementById('sunrise-val').textContent = sunrise;
-    document.getElementById('sunset-val').textContent  = sunset;
-
-    await fetchMoon();
-    drawSunArc();
-
-    // Update sun position every minute
-    if (sunArcTimer) clearInterval(sunArcTimer);
-    sunArcTimer = setInterval(drawSunArc, 60 * 1000);
-  } catch(e) {
-    console.error('Sunrise/sunset fetch error:', e);
-  }
+function fetchSun() {
+  drawSunArc();
+  if (sunArcTimer) clearInterval(sunArcTimer);
+  sunArcTimer = setInterval(drawSunArc, 60 * 1000);     // redraw once a minute to move the "now" markers
 }
 
 
@@ -5961,7 +5890,7 @@ async function fetchSPCSoundingFor(station, overrideHour, overrideDate) {
   // Use the datePart and hour for the URL
   const url = `https://www.spc.noaa.gov/exper/soundings/${datePart}${hour}_OBS/${station}.txt`;
   
-  console.log('Fetching:', url);
+  //console.log('Fetching:', url);
   //const res = await fetch(url);
   const res = await fetch(url, { cache: 'no-store' });
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${station}`);
@@ -7627,9 +7556,9 @@ setInterval(() => {location.reload(true);}, 1 * 60 * 60 * 1000);
 //const OTHER_RECYCLE_MIN = 45;   // recycle satellite/meso/fronts iframe (minutes)
 //const PAGE_RELOAD_MIN   = 55;   // full page reload (minutes) - same as your old script
 
-const RADAR_RECYCLE_MIN = IS_TV ? 30  : 5;   // GIF reloads every 5 min to stay current
-const OTHER_RECYCLE_MIN = IS_TV ? 30 : 45;
-const PAGE_RELOAD_MIN   = IS_TV ? 30 : 55;
+const RADAR_RECYCLE_MIN = IS_TV ? 120 : 30;   // recycle radar/map iframe this often (minutes)
+const OTHER_RECYCLE_MIN = IS_TV ? 120 : 45;   // recycle satellite/meso/fronts iframe (minutes)
+const PAGE_RELOAD_MIN   = IS_TV ? 120 : 55;   // full page reload (minutes)
 
 // 1. Recycle the map iframe. Loads the EXACT url for the current mode, untouched.
 function recycleSatFrame() {
